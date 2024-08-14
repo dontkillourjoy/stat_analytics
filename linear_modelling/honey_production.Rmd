@@ -1,0 +1,584 @@
+---
+title: "Final assg"
+author: "Goar Shaboian"
+date: "2023-05-30"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library (ggplot2)
+library (dplyr)
+library (tidyverse)
+library (kableExtra)
+library (data.table) # loading data
+library (stringr) # recapitalising state names
+library (GGally) # ggpairs
+library (png)
+library (reshape2) # melting
+library (ggridges) # violins
+library (RColorBrewer)
+library (scales) # show_col
+library (leaps) # regubsets
+library (olsrr) # cp mallows
+library (patchwork) # combining plots
+library (car) # vifs
+```
+
+
+```{r data-cleaning, include = FALSE, warning=FALSE, message=FALSE}
+
+####################
+###### DISEASE #####
+####################
+
+disease.data <- read.csv ("colonies affected by disease.csv", sep = ",", header = T)
+disease.data <- fread ("colonies affected by disease.csv")
+disease.data <- disease.data [, c(5, 19)]
+colnames (disease.data) <- c ("state", "value")
+disease.data$value <- as.numeric(gsub('"', '', disease.data$value))
+disease.data$state <- as.character(gsub('"', '', disease.data$state))
+disease.data <- disease.data [disease.data$state != "OTHER STATES"]
+
+disease.data <- disease.data %>%
+  group_by(state) %>%
+  summarize(total_var3 = sum(value))
+colnames (disease.data) <- c ("State", "disease")
+
+disease.data <- as.data.frame (disease.data)
+disease.data$State <- str_to_title (disease.data$State)
+
+
+####################
+######### pm #######
+####################
+pm.data <- read.csv ("pm.csv")
+
+####################
+# pesticides + co2 #
+####################
+pest.data <- read.csv ("honeyusa.csv", sep = ";", dec = ",")
+colnames (pest.data) <- c ("State", "prod", "cloth", "imid", "thiam", "ace", "co2")
+
+
+####################
+#### unite data ####
+####################
+temp <- merge (x = disease.data, y = pm.data, by = "State", all.x = TRUE)
+data <- merge (x = temp, y = pest.data, by = "State", all.x = TRUE)
+data <- data [complete.cases (data), ]
+rownames (data) <- data$State
+data <- data [, -1]
+names (data)
+data <- data [, c (3, 1, 8, 2, 4:7)]
+data_unscaled <- data
+data <- as.data.frame (scale (data))
+```
+```{r trend, warning=FALSE, message=FALSE, out.height="70%", out.width="70%", fig.align='center', fig.cap="Number of beehives in the United states, 1989-2021", echo=FALSE}
+# data on bee popultation from : https://www.fao.org/faostat/en/#data/QCL
+# number of beehives
+# imidacloprid into in 1991: @jeschke2008neonicotinoids
+trend <- read.csv ("population.csv", sep = ";", header = T)
+colnames (trend) <- c ("Year", "Value")
+trend <- trend [trend$Year >=1989, ]
+mypal <- brewer.pal(11, 'RdBu')
+show_col (mypal)
+
+plot_trend <- ggplot(trend, aes(x = Year, y = Value)) +
+    geom_ribbon(aes(ymin = 2300000, ymax = Value), fill = mypal [2], alpha = 0.3) +
+    geom_line(color = mypal [2], size = 1) +
+    geom_vline (xintercept = 1991, lty = 2, col = mypal [1], lwd = 1.1) +
+    annotate ("text", label = "Market introduction \n of imidacloprid", fontface = "bold", x = 1996, y= 3300000, col = mypal [1]) +
+    labs(title = "Bee Population Trend",
+         x = "Year",
+         y = "Bee Population") +
+    theme_minimal()
+plot_trend
+```
+```{r}
+urls <- c("https://quickstats.nass.usda.gov/", "https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide", "https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide", "https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide", "https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide", "https://quickstats.nass.usda.gov/","https://ephtracking.cdc.gov/qr/296/2/ALL/ALL/1/2016/0?apiToken=637DD2EF-507F-4938-8380-54A179C3132A", "https://www.eia.gov/environment/" )
+for (i in 1:length(urls)) {
+ tabs$Source <- gsub(source[i], sprintf('<a href="%s">%s</a>', urls[i], source[i]), tabs$Source)
+}
+
+# kable(tabs, escape = FALSE, format = "html")
+```
+
+```{r}
+#### old#######
+
+hyperlinked_sentence1 <- sprintf('<a href="%s">%s</a>', "https://quickstats.nass.usda.gov/", "Agriculture")
+hyperlinked_sentence2 <- sprintf('<a href="%s">%s</a>', "https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide", "Kaggle")
+source [1] <- hyperlinked_sentence1
+source [2] <- hyperlinked_sentence2
+
+
+kable(tabs, align = "l", caption = "Variable description") %>% 
+  kable_styling (full_width = FALSE) %>% 
+  column_spec (1, width = "5em") %>% 
+  column_spec (2, width = "35em") %>% 
+  column_spec (3, width = "5em") %>%
+  row_spec (0, bold = TRUE) %>%
+  row_spec (c (1, 3), background = "#F5E2C8")
+```
+
+
+
+```{r ggpairs-work, echo=FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.cap="Pair plots for covariates", out.height="70%", out.width="70%"}
+lowerFn <- function(data, mapping, method = "lm", ...) {
+  p <- ggplot(data = data, mapping = mapping) +
+    geom_point(colour = "brown4", alpha = .75, size = .85) +
+    geom_smooth(method = method, color = "black", fill = "brown4", alpha = .2, lwd = .6,  ...)
+  p
+}
+
+
+plot_ggpairs <- ggpairs (data = data, columns = 1:4, lower = list(continuous = wrap(lowerFn, method = "lm")), upper = list (continuous = wrap ("cor", color = mypal [1])), diag = list (continuous = wrap("densityDiag", fill = mypal [1], alpha = .3))) + 
+    labs(title = "Pairwise Plots") +
+    theme_bw () +
+    theme(plot.title = element_text (hjust = 0.5))
+#ggsave ("plot_ggpairs.png", plot = ggpairs_plot)
+#saveRDS(ggpairs_plot, file = "try.RDS")
+plot_ggpairs
+```
+
+```{r violins, echo=FALSE, message=FALSE, warning=FALSE}
+melted <- reshape2::melt(data [, 5:8])
+plot_violins <- ggplot (melted, fill = stat(x)) + 
+  geom_density_ridges_gradient (aes(x = value, y = factor(variable), group=variable, fill=factor(variable)),scale = 2, size = 0.3, rel_min_height = 0.01, bandwidth=0.1) +
+  scale_fill_manual (values =mypal [1:4]) + 
+    xlab("Peticide use")+  ylab("")+  xlim (-1, 4)+ labs(title="Violin plots for pesticides", fill="Characteristic") +
+    guides(fill=guide_legend(title="Pesticide", reverse = TRUE, , title.position="top", title.hjust = .5)) +
+    theme_minimal()+ 
+    theme(
+        legend.position = c(.95, .90),
+        legend.direction = "horizontal",
+        legend.justification = "right",
+        legend.margin = margin(6, 6, 6, 6), 
+        axis.text.y = element_blank(),
+        plot.title = element_text(hjust = 0.5))
+plot_violins
+```
+
+
+
+```{r lm-fit, warning=FALSE, message=FALSE}
+summary (data$co2)
+data$cat_co2 <- as.factor (ifelse(data$co2 > 0, "High", "Low"))
+summary (data$pm)
+data$cat_pm <- as.factor (ifelse(data$pm > 0, "High", "Low"))
+full_data <- data
+data <- data [, - c (3, 4)]
+
+## for unscaled data ##
+summary (data_unscaled$co2)
+data_unscaled$cat_co2 <- as.factor (ifelse(data_unscaled$co2 > 118.6, "High", "Low"))
+summary (data_unscaled$pm)
+data_unscaled$cat_pm <- as.factor (ifelse(data_unscaled$pm > 7.4, "High", "Low"))
+full_data_unscaled <- data_unscaled
+data_unscaled <- data_unscaled [, - c (3, 4)]
+########################
+
+colors <- ifelse(data$cat_pm == "High", "red", "blue")
+plot (data$disease, data$prod, col = colors)
+high_group <- data[data$cat_pm == "High", ]
+low_group <- data[data$cat_pm == "Low", ]
+
+high_lm <- lm(prod ~ disease, data = high_group)
+low_lm <- lm(prod ~ disease, data = low_group)
+
+{plot (data$disease, data$prod, col = colors)
+  abline(high_lm, col = "red", lwd = 2)   
+  abline(low_lm, col = "blue", lwd = 2)}
+# not sure if should plot this ^
+
+```
+```{r lm-fit, warning=FALSE, message=FALSE}
+fit <- lm (prod ~ disease + cat_co2 + cat_pm + cloth + imid + thiam + ace + disease*cat_pm, data = data)
+summary (fit) # not a good fit
+
+```
+
+```{r bss-new, warning=FALSE, message=FALSE, echo=FALSE}
+bss <- regsubsets (prod ~ disease + cat_co2 + cat_pm + cloth + imid + thiam + ace + disease*cat_pm, data = data)
+bss_sum <- summary (bss)
+# note that step 5, interaction starts to be included without the main effect
+bss_formulas <- bss_sum$which
+plot(bss_sum$bic, type = "b",col = 1, pch = 16, xlab = "number of predctors", ylab = "drop in BIC")
+bss_sum$bic
+
+mod1 <- lm (prod ~ cat_pm, data = data)
+mod2 <- lm (prod ~ cat_pm + thiam, data = data)
+mod3 <-  lm (prod ~ cat_pm + thiam + ace, data = data)
+mod4 <- lm (prod ~ cat_pm + thiam + ace + cloth, data = data)
+mod5 <- lm (prod ~ cat_pm + thiam + ace + cloth + disease + disease*cat_pm, data = data)
+mod6.1 <- lm (prod ~ cat_pm + thiam + ace + cloth + disease + disease*cat_pm + imid, data = data)
+mod6.2 <- lm (prod ~ cat_pm + thiam + ace + cloth + disease + disease*cat_pm + cat_co2, data = data)
+summary(mod6.1)$r.squared; summary (mod6.2)$r.squared # 0.282 vs 0.281
+summary(mod6.1)$sigma; summary (mod6.2)$sigma # 0.9544 vs 0.955
+# choose mod6.1
+mod6 <- mod6.1
+mod7 <-  lm (prod ~ cat_pm + thiam + ace + cloth + disease + disease*cat_pm + imid + cat_co2, data = data)
+models <- list (mod1, mod2, mod3, mod4, mod5, mod6, mod7)
+
+bic <- numeric (7)
+aic <- numeric (7) 
+r_adj <- numeric (7)
+cp_mallows <- numeric (7)
+for (i in 1:7){
+  model_out <- models [[i]]
+  aic [i] <- AIC (model_out)
+  bic [i] <- BIC (model_out)
+  cp_mallows [i] <- ols_mallows_cp (model_out, mod7)
+  sum_out <- summary (model_out)
+  r_adj [i] <- sum_out$adj.r.squared
+}
+
+bic.null <- BIC (lm (prod ~ 1, data = data))
+drop_in_BIC <- sapply (bic, function (t) t - bic.null)
+
+aic.null <- AIC (lm (prod ~ 1, data = data))
+drop_in_AIC <- sapply (aic, function (t) t - bic.null)
+
+
+# bic [3] - bic [2]
+# bss_sum$bic [3] - bss_sum$bic [2] those quantities are what is equal
+
+
+your_data_frame <- data.frame(
+  number_of_predictors = c(1, 2, 3, 4, 6, 7, 8), 
+  drop_in_AIC, 
+  drop_in_BIC,
+  cp_mallows,
+  r_adj)
+
+# Plot 1: AIC
+plot_aic <- ggplot(data = your_data_frame, aes(x = number_of_predictors, y = drop_in_AIC)) +
+  geom_line() +
+  geom_point(shape = 16) +
+  labs(x = "number of predictors", y = "drop in AIC") +
+  geom_vline(xintercept = which.min(drop_in_AIC), linetype = "dashed", col = mypal [2]) +
+  theme(plot.margin = margin(0, 0, 0, 5)) +
+  theme_minimal()
+
+# Plot 2: BIC
+plot_bic <- ggplot(data = your_data_frame, aes(x = number_of_predictors, y = drop_in_BIC)) +
+  geom_line() +
+  geom_point(shape = 16) +
+  labs(x = "number of predictors", y = "drop in BIC") +
+  geom_vline(xintercept = which.min(drop_in_BIC), linetype = "dashed", col = mypal [2]) +
+  theme(plot.margin = margin(0, 5, 0, 0)) +
+  theme_minimal ()
+
+# Plot 3: Cp Mallows
+plot_cp_mallows <- ggplot(data = your_data_frame, aes(x = number_of_predictors, y = cp_mallows)) +
+  geom_line() +
+  geom_point(shape = 16) +
+  labs(x = "number of predictors", y = expression(Mallows ~ C[p])) +
+  geom_vline(xintercept = which.min(cp_mallows), linetype = "dashed", col = mypal [2]) +
+  theme(plot.margin = margin(5, 0, 0, 5)) + 
+  theme_minimal ()
+
+# Plot 4: r.adj
+plot_r_adj <- ggplot(data = your_data_frame, aes(x = number_of_predictors, y = r_adj)) +
+  geom_line() +
+  geom_point(shape = 16) +
+  labs(x = "number of predictors", y = expression(R[adj]^2)) +
+  geom_vline(xintercept = which.max(r_adj), linetype = "dashed", col = mypal [2]) +
+  theme(plot.margin = margin(5, 5, 0, 0)) + 
+  theme_minimal ()
+
+
+combined_plot <- plot_aic + plot_bic + plot_cp_mallows + plot_r_adj +
+  plot_annotation(title = "Model selection, best sample selection approach", theme = theme(plot.title = element_text(hjust = 0.5)))
+combined_plot
+# choose model with 4 predictors
+```
+
+```{r loocv-dream, warning=FALSE, message=FALSE}
+l <- length (models); n <- nrow (data)
+loocv_attempt <- function (models, data){
+  cv_loocv <- matrix (NA, n, l)
+  # for loop to iterate over the models:
+  for (i in 1:l){
+    # for loop to train the data LOO:
+    for (j in 1:n){
+    mod_loocv <- lm (models [[i]]$call$formula, data = data [-j, ]) 
+    # each model has dif number of preds. must fit each model on test data and store result in l-th col and
+      # n-th row of it
+    predicted <- predict(mod_loocv, newdata = data[j, ])
+    squared_error <- (data$prod[j] - predicted)^2
+    cv_loocv [j, i] <- squared_error
+    }
+  }
+  return (cv_loocv)
+}
+
+```
+
+
+```{r loocv-new, warning=FALSE, message=FALSE}
+# for LOOCV, need to sequentially fit models on (n-1 rows)
+library(caret)
+n <- nrow (data)
+# Define the LOOCV function to calculate MSE
+loocv_mse <- function(model, data) {
+  # Initialize an empty vector to store MSE values
+  mse <- numeric(n)
+  
+  # Perform LOOCV
+  for (i in 1:n) {
+    # Create a training set by removing the i-th observation
+    train_data <- data[-i, ]
+    
+    # Fit the model to the training set
+    fit_out <- lm (model, data = train_data)
+    
+    # Make predictions on the left-out observation
+    pred <- predict (fit_out, newdata = data[i, ])
+    
+    # Calculate the squared error
+    mse[i] <- (data[i, "prod"] - pred)^2
+  }
+  
+  # Return the mean squared error
+  return(mean(mse))
+}
+
+# Create a vector to store MSE values for each model
+mse_values <- numeric(length = length(models))
+
+# Perform LOOCV for each model
+for (i in 1:length(models)) {
+  mse_values[i] <- loocv_mse(models[[i]], data)
+}
+
+# Output the MSE values for each model
+mse_values
+
+```
+```{r loocv-new-new}
+p <- 5
+n <- nrow (data)
+set.seed (17)
+folds <- sample (1:k, n, replace = TRUE)
+cv.errors <- matrix(NA, k, p, dimnames = list (NULL, paste (1:p)))
+
+for (i in 1:n){
+  opt_mod <- models [[]]
+}
+
+
+for (j in 1:n){
+  # fit the models on training data
+  opt_mod <- regsubsets (prod ~., data = data [-i,])
+  # for each number of p, calculate the cv error, fitting the model on test data
+  for (i in c (1, 2, 3, 4,6,7,8)){
+    matr <- model.matrix(as.formula(opt_mod$call[[2]]), data = data[i,])
+    coefs <- coef(opt_mod, id = i) # extracting coefs for each optimal model for p = i
+    covars <- names (coefs) # extract which vars are used to fit each optimal model at p = i
+    # mse = avg y_i - y_fit
+    fit <- matr [, covars] %*% coefs
+    cv.errors[j, i] <- mean ((data$prod[folds == j] - fit)^2)
+  }
+}
+
+```
+
+
+
+
+```{r chatgpt-LOOCV}
+n <- nrow(data)
+p <- ncol (mat)
+cv.errors <- matrix(NA, n, p, dimnames = list(NULL, paste(1:p)))
+
+data_trim <- data [ , - c(3, 4)]
+for (j in 1:n) {
+  # Fit the model on training data
+  opt_mod <- regsubsets(prod ~ disease + cat_co2 + cat_pm + cloth + imid + thiam + ace + disease*cat_pm, data = data,trim [-j, ])
+  
+  # For each number of p, calculate the cv error, fitting the model on test data
+  for (i in 1:p) {
+    formula <- as.formula (paste ("prod ~ ", paste(names(mat[i,-1])[mat[i,-1] == TRUE], collapse = "+")))
+  model <- lm (formula, data = data)
+    matr <- model.matrix(as.formula(opt_mod$call[[2]]), data = data.trim[j, ])
+    coefs <- coef(opt_mod, id = i)  # Extract coefs for each optimal model for p = i
+    covars <- names(coefs)  # Extract which vars are used to fit each optimal model at p = i
+    
+    # mse = avg y_i - y_fit
+    fit <- matr[, covars] %*% coefs
+    cv.errors[j, i] <- (data$prod[j] - fit)^2
+  }
+}
+
+cv.mean <- apply(cv.errors, 2, mean)
+plot(cv.mean, type = "b", xlab = "Number of predictors", ylab = "CV error")
+abline(v = which.min(cv.mean), col = "blue", lty = 2)
+```
+
+
+```{r prof-loocv}
+k <- 5
+p <- 5
+n <- nrow (data)
+set.seed (17)
+folds <- sample (1:k, n, replace = TRUE)
+cv.errors <- matrix(NA, k, p, dimnames = list (NULL, paste (1:p)))
+
+for (j in 1:k){
+  # fit the models on training data
+  opt_mod <- regsubsets (prod ~., data = data [folds != j,])
+  # for each number of p, calculate the cv error, fitting the model on test data
+  for (i in 1:p){
+    matr <- model.matrix(as.formula(opt_mod$call[[2]]), data = data[folds == j,])
+    coefs <- coef(opt_mod, id = i) # extracting coefs for each optimal model for p = i
+    covars <- names (coefs) # extract which vars are used to fit each optimal model at p = i
+    # mse = avg y_i - y_fit
+    fit <- matr [, covars] %*% coefs
+    cv.errors[j, i] <- mean ((data$prod[folds == j] - fit)^2)
+  }
+}
+
+cv.mean <- apply (cv.errors, 2, mean)
+{plot(cv.mean, type = "b", xlab = "Number of predictors", ylab = "CV error")
+  abline(v = which.min(cv.mean), col = mycol[3], lty = 2)}
+```
+
+
+```{r collin, message=FALSE, warning=FALSE}
+# chose model:
+# lm (prod ~ cat_pm + thiam + ace + cloth, data = data)
+data_choice <- cbind (data [, c (1, 3, 5, 6, 8)], "pm" = full_data [, 4])
+
+# correlation run on the original values for categorical variable ????????
+corr_matrix <- cor(data_choice [, c (2:4, 6)])
+melted_corr <- reshape2::melt(corr_matrix)
+
+# Plot the heatmap
+corplot <- ggplot(melted_corr, aes(Var2, Var1, fill = abs (value))) +
+    geom_tile(color = "white", lwd = 0.1, linetype = 1) +
+    geom_text(aes(label = round(value, 2)), color = "darkred", size = 3.5) +
+    scale_fill_gradient(low = mypal[5], high = mypal [3]) +
+    labs(x = "", y = "", fill = "Correlation") +
+    ggtitle("Correlation plot") +
+    theme(plot.title = element_text(size = 20, face = "bold", hjust = 0.5))
+corplot
+```
+
+Since the categorical variable was created using the initial continuous values for it, to check for multicollinearity issues, it is possible to include the initial values in the calculation of Pearson's correlation. The decision was made to apply this strategy since at this stage, no regression modelling is involved: only the nature of the relationship between covariates is investigated.
+
+```{r vifs, message=FALSE, warning=FALSE}
+vif (mod4)
+```
+Values for Variance Inflation Factor are quite small, and they do not exceed the rule-of thumb threshold. 
+
+However, if multicollinearity problem was observed, one of two methods for dealing with it would have been implemented: 
+
+1. Removing one of the variables that inflates the variance from the regression analysis. Much information would not have been lost since the variable correlated with it explains more or less the same amount of the response variability.
+
+2. Combining the variables and including the new variable into the model specification. This method is more preferable because in this way, no information is lost. The decision would have to have been made on the nature of the combination of the two variables, as well as on ways to account for differences of measurement scales.
+
+# Diagnostics
+
+When fitting the regression and making inference, it is assumed that all the data points have constant variance. However, it may not always be the case: the nature of the data may indicate that there are differences in variability across observations.
+
+If the assumption on constant variance is violated, then the ordinary least squares are not the most efficient estimators in the class of unbiased linear estimators: the Gauss-Markov theorem relies on the assumtpion that variance is constant across the observation and equal to $\sigma^2 (1). Additionally, the standard errors for the regression coefficients are not estimated correctly, which leads to problems with making inference on the coefficients. 
+
+To check whether the variance is constant, the residuals are investigated. 
+
+```{r resid-plot}
+fit <- mod4
+col_groups <- mypal [c (1, 3, 10)]
+data$groups <- cut(fitted (fit), breaks = c(-1, -.56, .25, 1), labels = c(1, 2, 3))
+colors <- col_groups [as.integer(data$groups)]
+plot(fitted(fit), residuals(fit), pch = 18, xlab = "fitted", ylab = "residuals", main = "Fitted vs residuals", col = colors)
+max_residual_index <- which.max(abs(residuals(fit)))
+max_residual_state <- rownames(data)[max_residual_index]
+
+# Add the state name with the maximum residual value to the plot
+text(fitted(fit)[max_residual_index], residuals(fit)[max_residual_index],
+     labels = max_residual_state, pos = 4)
+
+
+## on log data
+ lm (prod ~ cat_pm + thiam + ace + cloth, data = data_noo)
+log_for_zeros <- function (vect){
+  out <- numeric (length (vect))
+  for (i in 1:length (vect)){
+    if (vect [i] != 0){
+    out [i] <- log (vect [i])
+    }
+  else {
+    vect [i] <- .0001
+    out [i] <- log (vect [i])
+    }
+  }
+  return (out)
+}
+
+data_log <- data_unscaled [, c (1, 3, 5, 6, 8)]
+data_log [, 1:4] <- apply (data_log [, 1:4], 2, log_for_zeros)
+fit_log <- lm (prod ~ cat_pm + thiam + ace + cloth, data = data_log)
+plot(fitted(fit_log), residuals(fit_log), pch = 18, xlab = "fitted", ylab = "residuals", main = "Fitted vs residuals")
+```
+
+
+```{r}
+sw <- shapiro.test(residuals(fit)) 
+qqnorm(residuals(fit), pch=16, col = 2) 
+qqline(residuals(fit), col = 1, lwd = 2) 
+legend("bottomright", legend = paste("Shapiro-Wilk = ", round(sw$statistic, 2),", p = ", signif(sw$p.value, 2)))
+text(fitted(fit)[max_residual_index], residuals(fit)[max_residual_index],
+     labels = max_residual_state, pos = 4)
+
+# for log:
+sw <- shapiro.test(residuals(fit)) 
+qqnorm(residuals(fit_log), pch=16, col = 2) 
+qqline(residuals(fit_log), col = 1, lwd = 2) 
+```
+
+
+
+```{r hlp}
+infl <- influence(fit)
+hat <- infl$hat
+2*6/34 # 0.35 
+which(hat>0.35) # 6 obs
+install.packages ("faraway")
+library (faraway)
+halfnorm (hat, 6, labs = substr(rownames(data), 1, 1), main = "High leverage points")
+```
+
+```{r}
+rstad <- rstandard(fit)
+range(rstad) # [-1.3, 4.45] no issues by rule of thumb
+alpha <- 0.05
+n <- length(data$prod)
+b_threshold <- qt(1-alpha/(2*n), df = fit$df.residual)
+outlier_index <- which(abs(rstad) > b_threshold)
+plot(abs(rstad), pch = 18, ylim = c(0,6), ylab = "Studentised residuals", main = "Outlier detection")
+abline(h = b_threshold, col = 2, lwd = 2, lty = 2)
+legend ("topright", legend = "Bonferroni threshold", lty = 2, lwd = 2, col = 2)
+text(outlier_index, abs(rstad)[outlier_index], labels = rownames(data)[outlier_index], pos = 1)
+```
+
+```{r infl}
+cook <- cooks.distance(fit)
+which(cook>1)
+```
+```{r no-outliers}
+# ND is number 20
+data_noo <- data [-20, ]
+fit_noo <- lm (prod ~ cat_pm + thiam + ace + cloth, data = data_noo)
+data_noo$groups <- cut(fitted (fit_noo), breaks = c(-1, -.56, .25, 1), labels = c(1, 2, 3))
+plot(fitted(fit_noo), residuals(fit_noo), pch = 18, xlab = "fitted", ylab = "residuals", main = "Fitted vs residuals", col = colors)
+sw <- shapiro.test(residuals(fit_noo)) 
+qqnorm(residuals(fit_noo), pch=16, col = 2) 
+qqline(residuals(fit_noo), col = 1, lwd = 2) 
+legend("bottomright", legend = paste("Shapiro-Wilk = ", round(sw$statistic, 2),", p = ", signif(sw$p.value, 2)))
+text(fitted(fit_noo)[max_residual_index], residuals(fit_noo)[max_residual_index],
+     labels = max_residual_state, pos = 4)
+```
+
+

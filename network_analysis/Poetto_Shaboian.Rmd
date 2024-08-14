@@ -1,0 +1,854 @@
+---
+title: " Structural and Resilience Analysis of the German Transmission Network"
+subtitle: "Project for Statistical Analysis for Network Data course"
+author: "Patrick Poetto, Goar Shaboian"
+output:
+  bookdown::pdf_document2:
+    toc: false
+  pdf_document: default
+  officedown::rdocx_document: default
+  bookdown::html_document2: default
+fig.caption: yes
+always_allow_html: yes
+bibliography: bibliography.bib 
+date: "2024-06-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(igraph)
+library (patchwork)
+library (ggplot2)
+library (tmaptools)
+library(sf) # spatial
+library(sp) # spatial
+library (scales) # show cols
+library (bookdown)
+library (knitr)
+library (dplyr)
+library (reshape2)
+library (giscoR)
+library (stringr)
+library (eurostat) # density data
+library(zoo) # interpolating
+
+# plots:
+library(visNetwork)
+library(ggnetwork)
+library(ggplot2)
+library(maps)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(leaflet)
+library(RColorBrewer)
+library(viridis)
+library(threejs)
+library(htmlwidgets)
+library(plotly)
+library(gridExtra)
+theme_set(theme_bw())
+```
+
+```{r colours, echo = F, warning=F, message=F}
+col_pal <- c ("#5FBFA5", "#D8B801",
+                      "#0076BC", "#BD282A",
+                      "#42A62A", 
+                      "#009DE0", "#9C9D9F",
+                      "#AF9E66", "#F8B334",
+                      "#CB593E", 
+                      "#F08340", "#97BE0D",
+                      "#5F6061","#6AAAC5",
+                      "#58CAEC", "#B0DE0F")
+```
+
+# Critical Role of Grid Resilience in Safety
+
+Power grid networks are among the most critical infrastructures that a country has to manage. They facilitate the generation, transmission, and distribution of electricity to the final consumers. These kind of networks are composed of interconnected components such as power plants, transformers, transmission lines, substations, and distribution systems. The robustness and reliability of power grids against possible disrupting events are vital for the stability of modern societies, as they power homes, industries, hospitals, and any essential services.
+
+As already mentioned, a typical power grid is divided into three main segments:
+
+1. **Generation**: This involves power plants that generate electricity from various sources, including fossil fuels, nuclear power, and renewable energy sources like wind and solar.
+
+2. **Transmission**: High-voltage transmission lines carry electricity over long distances from power plants to substations. These lines are designed to minimize power losses and ensure efficient energy transfer.
+
+3. **Distribution**: The distribution network delivers electricity from substations to end-users. This network operates at lower voltages and involves numerous localized systems.
+
+Power grids are exposed to numerous challenges, including aging infrastructure, increasing demand, integration of renewable energy sources, and cybersecurity threats. Among these, the resilience of power grids to targeted attacks is a growing concern. Targeted attacks on power grids can have devastating consequences, leading to widespread blackouts, economic losses, which may be considered as threats to national security if the disrupting event is deliberately conducted. In such a context, power grid resilience refers to the ability of the network to withstand, adapt to, and recover from disruptions. Analyzing the resilience of power grid networks, particularly against targeted attacks, involves understanding how different components of the network are interconnected and how their failure impacts the overall system. This type of analysis is crucial for designing strategies to enhance the robustness of power grids.
+
+The primary objective of the present project is to analyze the resilience of power grid networks under targeted attacks. Specifically that is:
+
+1. Identify critical nodes and links within the power grid network whose failure could lead to significant disruptions.
+
+2. Evaluate the impact of targeted attacks on the stability and functionality of the power grid.
+
+3. Propose strategies to enhance the resilience of the power grid network against such attacks.
+
+To achieve these objectives, the project will employ network statistical analysis to assess the vulnerabilities of the European power grid network. The findings will help in formulating effective mitigation strategies to safeguard power grid networks against potential targeted attacks.
+
+# Dataset description
+
+As discussed, investigating the effects of policies on electricity transmission systems is a critical and complex issue that requires a thorough approach. One major challenge is ensuring that these policies are publicly and widely accepted, which necessitates transparency in both the research and decision-making processes (@medjroubi2017open). However, models and data in the power grid field are often not publicly available, which impedes the evaluation of existing models and approaches, thereby affecting the reproducibility of results. The lack of accessible data is due to security concerns and the sensitivity of the information, as such data could be exploited for malicious purposes, such as disrupting operations. Some agencies release local country-specific data, however, they are often not geo-referenced, which limits the conclusions that can be drawn by analysing the data (@medjroubi2017open).
+
+An attempt to address this problem was made by SciGRID project launched in Germany and funded by the German Federal Ministry of Education and Research, which was created for the purpose of developing automated generation of models of power grids for the purposes of research and practical applications. The area of interest for this project were the European transmission networks, with a specific focus on German systems. The authors of the project noted that the absence of scientific discourse regarding the underlying methods, processes, and outcomes suggests that there is limited opportunity for learning and skill development in constructing electrical grid models (@SciGRIDv02). As an attempt to solve this problem, a publicly available dataset (collected at the 18.07.2016 date) comprising transmission networks of a list of European countries.
+
+
+```{r load-data-europe, echo=F, warning=F, message=F}
+edges = read_excel("links_eu_power_160718.xlsx")
+vertices = read_excel("vertices_eu_power_160718.xlsx")
+edges <- edges[, c("v_id_1", "v_id_2", "l_id", "voltage", "cables", "wires", "frequency",
+                   "name", "operator", "ref", "length_m", "r_ohmkm", "x_ohmkm", "c_nfkm",
+                   "i_th_max_a", "from_relation", "wkt_srid_4326")]
+europe <- ne_countries(scale = "medium", continent = "Europe", returnclass = "sf")
+asia <- ne_countries(scale = "medium", continent = "Asia", returnclass = "sf")
+```
+
+```{r plot-wires, echo=F, warning=F, message=F}
+vertices_clean <- vertices[, c("v_id", "lat", "lon", "typ")]
+edges_clean <- edges[, c("v_id_1", "v_id_2", "cables", "wires")]
+colnames(vertices_clean) <- c("id", "lat", "lon", "typ")
+colnames(edges_clean) <- c("from", "to", "cables", "wires")
+g <- graph_from_data_frame(d = edges_clean, vertices = vertices_clean, directed = FALSE)
+nodes_data <- data.frame(id = V(g)$name, label = V(g)$name, group = V(g)$typ, 
+                    title = paste("Node ID: ", V(g)$name, "<br>Latitude: ", V(g)$lat, "<br>Longitude: ", V(g)$lon),
+                    x = V(g)$lon, y = V(g)$lat)
+edges_data <- data.frame(from = as.character(ends(g, E(g))[,1]), to = as.character(ends(g, E(g))[,2]))
+
+two_dim_nodetype = visNetwork(nodes_data, edges_data, width = "800px", height = "800px") %>%
+  visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE) %>%
+  visEdges(color = list(color = "gray", highlight = "blue")) %>%
+  visNodes(color = list(background = "orange", border = "black", highlight = "red")) %>%
+  visLayout(randomSeed = 42) %>%
+  visPhysics(stabilization = FALSE)
+#
+#saveWidget(two_dim_nodetype, "two_dim_nodetype.html")
+```
+
+```{r plot-europe, echo=F,out.height='80%', out.width='100%', fig.align='center', fig.keep = 'hold', fig.cap='SciGRID: European transmission network', warning=FALSE, message=FALSE}
+vertex_colors <- c("substation" = col_pal [1], "plant" = col_pal [2],
+                   "generator" = col_pal [4], "auxillary_T_node" = col_pal[3])
+edges_with_coords <- edges %>%
+  left_join(vertices, by = c("v_id_1" = "v_id")) %>%
+  rename(lon1 = lon, lat1 = lat) %>%
+  left_join(vertices, by = c("v_id_2" = "v_id")) %>%
+  rename(lon2 = lon, lat2 = lat)
+
+plot_network <-  ggplot() +
+  geom_sf(data = europe, fill = "floralwhite", color = "darkblue") +
+  geom_sf(data = asia, fill = "floralwhite", color = "darkblue") +
+    
+  geom_point(data = vertices, aes(x = lon, y = lat, fill = typ),color = 1, size = 3, pch = 21) +
+geom_segment(data = edges_with_coords, aes(x = lon1, y = lat1, xend = lon2, yend = lat2), color = "black", lwd = 0.1) +
+  scale_fill_manual(values = vertex_colors, labels = c ("T-junction", "Generator", "Plant", "Substation")) +
+  labs(
+    x = "Longitude", 
+    y = "Latitude", 
+    title = "Power Grid Nodes and Edges",
+    subtitle = "",
+    caption = "GeoData from Natural Earth",
+    fill = "Vertex type"
+  ) +
+  coord_sf(xlim = c(-10, 45), ylim = c(35, 70)) +
+  theme_bw() + 
+  theme(
+    
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5), 
+    plot.subtitle = element_text(size = 9, face = "italic", hjust = 0.5), 
+    plot.caption = element_text(size = 5, face = "italic"), 
+    axis.title = element_text(size = 9, face = "bold"), 
+    axis.text = element_text(size = 7), 
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 5),
+    axis.text.y = element_text(size = 5),
+    #legend.position = c(.12, .88),
+    legend.direction = "vertical",
+          legend.text = element_text(size = 14),
+          legend.title = element_text(size = 12, face = "bold", hjust = .5),  # Bold legend title
+          text = element_text(size = 14),
+          legend.background = element_rect(fill = "white", color = "black", linewidth = 0.5),  # Box with thin black line
+          legend.box.background = element_rect(color = "black", size = 0.5)) +
+  scale_x_continuous(breaks = seq(-10, 45, by = 5)) +
+  scale_y_continuous(breaks = seq(35, 70, by = 5))
+print (plot_network)
+
+#ggsave("plot_network.png", plot = network, width = 8, height = 8, units = "in")
+```
+
+The automated model created by SciGRID relied on data made available by the OpenStreetMap project under the Open Database License. OpenStreetMap, an open-source voluntary project that aims at providing accessible and free geographic information. It is a leader in the field of the Volunteeered Geographic Information, and provides not only maps, but also a system of softaware, tools and applications, as well as thorough and exhaustive documentation of data collection and processing (@mooney2017review). It is a reliable source of information, used widely in practical applications and research (@jokar2015introduction), with regularly provided updates and checks performed by the community of contributors.
+
+Power information in OpenStreetMap generally details individual structures, like overhead power lines and nuclear power plants, with the exception of Germany, where 'power route' objects have been well-documented as a widely accepted standard. Those objects are rarely found outside of Germany (@bart2016mt), hence this analysis will be limited to investigating the structure of the transmission network in Germany, with the possibility to extend the results to a wider geographical locations remaining a future possibility. 
+
+The data provided is freely available, with thorough documentation provided on the methods of data collection, processing and abstraction. The transmission network components that were included under the __power__ category of the _openstreetmap_ database were defined and included in the __SciGRID__ dataset in an automatised fashion. 
+
+The dataset provides network data, including nodes (vertices) and links (edges). The __nodes__ provided in SciGRID are electrical substations, which are represented in the OpenStreetMap topology by objects 'substation', 'stations' 'plants' and 'generators'. Those OMS relations are investigated, with relations representing incomplete electrical circuits excluded. Objects with 3 substations and a T-junction (where a transmission line branches out in two lines) are included in the SciGRID dataset by thoroughly investigating all nodes that are associated with 3 or more transition lines, and then confirming the type of the object by checking the start and end of the connection lines for each of 3 segments. 
+
+The __substation__ category represents a facility that controls the flow of electricity, with the sizes of the substations varying significantly. They generally contain one or more transformers that can change the voltage. __Plants__ refer to large-scale industrial facilities that generate more than 1MW of power, and they might also be used for energy _storage_. __Generators__ refer to objects that create power, but on a smaller scale than __plants__, and they might include objects such as solar panels, micro-hydro and wind turbins that are typically stand-alone structures (@osm-wiki-power). 
+
+The __edges__ recorded in the dataset represent the transmission lines that connect the power relations. The edges recorded do not strictly follow the actual paths of the transmission lines, but an abstraction is introduced that involves recording edges as simple links between the vertices. The authors underline the fact that, in case of necessity, conserving the geographic information is straightforward (@SciGRIDv02). In this way, each edge denotes a direct link between two substations, indicating the pathway through which power flows from one point to another within the network.
+
+Another abstraction involved in the data collection process involves recording the vertices as geographical centres of substations that are members of the OMS power relation. 
+
+The validation of the collected data was performed by comparing the outcomes of the generated map to the maps made available by the European Network of Transmission System Operators for Electricity. Also, the GridKit project, which was also aimed at generating power transmission maps based on the OSM data, implemented a different approach to data collection in that the network topology derivation relied on the spatial data in OpenStreetMap through heuristic assumptions and extensive data processing rather than on the human-authored _"power routes"_, with the results demonstrating relative coherence in the "relative completeness" metric between the two approached when applied to Germany. 
+
+# Preliminary steps
+
+The dataset was accessed from the SciGRID [website](https://www.power.scigrid.de/pages/downloads.html), with separate files for vertices and edges available.
+
+```{r load-data, echo = F, warning=FALSE, message=FALSE}
+vertices <- read_excel("germany_vertices.xlsx")
+colnames (vertices) [7] <- "title"
+edges <- read_excel("germany_links.xlsx")
+edges [,c (1,2,3)] <- edges [,c (2,3,1)]
+colnames (edges) [c (1,2,3)] <- colnames (edges) [c (2,3,1)]
+```
+
+Since the data concerns a geographic region, it is of interest to include in the analysis some information on the spatial structure of the analysed region, hence the map of administrative regions of Germany was retrieved in order to conduct comprehensive analysis.
+
+```{r district-names, warning=F, message=FALSE, echo=FALSE}
+german_districts <- st_read("1_sehr_hoch.geo.json")
+st_crs(german_districts) <- 4326
+vertices_sf <- st_as_sf(vertices, coords = c("lon", "lat"), crs = 4326)
+joined_data <- st_join(vertices_sf, german_districts, left = TRUE)
+vertices$distr <- joined_data$NAME_1
+```
+
+In the dataset, 3 duplicated vertices were included, as well as several vertices that are geographically located outside the country of Germany, thus, data cleaning procedure was implemented in order to remove the mentioned nodes.
+
+```{r save-dupli-v, echo=FALSE, warning=F, message=F}
+#dupli_v <- c ("244", "262", "516")
+#saveRDS (dupli_v, "verts_cleaning.RDS")
+```
+```{r data-cleaning, echo=FALSE, warning=F, message=F}
+data_cleaning <- readRDS ("verts_cleaning.RDS")
+# id names for vertices to be removed:
+rm_v_ids <- c (data_cleaning, vertices$v_id [is.na(vertices$distr)])
+# removing those vertices from the vertices df:
+vertices <- vertices [!vertices$v_id %in% rm_v_ids,]
+# removing links from the edges df:
+edges <- edges [!edges$v_id_1 %in% rm_v_ids,]
+edges <- edges [!edges$v_id_2 %in% rm_v_ids,]
+```
+
+The graph for the transmission network was created using _igraph_ package, with attributes for edges and vertices included in the graph structure. Additionally, duplicated edges were removed for the further analysis. 
+
+\small
+```{r network, warning=FALSE, message=FALSE}
+power_network <-  graph_from_data_frame (edges, vertices,directed = FALSE)
+power_network <- igraph::simplify(power_network)
+```
+\normalsize
+
+
+```{r germany-map, echo=F,out.height='70%', out.width='70%', fig.align='center', fig.keep = 'hold', fig.cap='SciGRID: German transmission network'}
+color_map <- list("substation" = "red", "plant" = "green", "generator" = "blue", "auxillary_T_node" = "orange")
+
+vertices$typ <- factor(vertices$typ)
+vertices$color <- sapply(vertices$typ, function(x) color_map[[as.character(x)]])
+
+germany_map <- leaflet() %>%
+  addTiles() %>%
+  setView(lng = 10, lat = 51, zoom = 6)  # Adjusted for Germany
+
+netmap_germany <- germany_map %>%
+  addCircleMarkers(data = vertices, lng = ~lon, lat = ~lat, radius = 4, color = ~color, fillColor = ~color, weight = 3, fillOpacity = 1)
+
+for (i in 1:nrow(edges)) {
+  from_node <- vertices[vertices$v_id == edges$v_id_1[i], ]
+  to_node <- vertices[vertices$v_id == edges$v_id_2[i], ]
+  netmap_germany <- netmap_germany %>%
+    addPolylines(lng = c(from_node$lon, to_node$lon), lat = c(from_node$lat, to_node$lat), color = "blue", weight = 1)
+}
+
+#saveWidget(netmap_germany, "netmap_germany.html")
+netmap_germany
+```
+
+The obtain graph is visualised in the *Figure \@ref(fig:germany-map)*, with the transmission nodes and the recorded links between them depicted on the map of Germany. The plot allows to distinguish between <<WHAT ATTRIBUTES???>.
+
+## Network cohesion
+
+The network cohesion was investigated to determine if the network is __disconnected__, with the __maximally connected subgraphs__ determined by graph decomposition.
+
+```{r cohesion-inv, echo = F,message=FALSE, warning=FALSE}
+is_connected (power_network) # not connected
+components_power <- decompose (power_network)
+component_sizes <- sapply (components_power, vcount)
+table_comps <- as.data.frame ((table (component_sizes))) 
+colnames (table_comps) <- c ("Size of component", "Frequency")
+kable (table_comps, format = "markdown", caption = "Sizes of connected components", 
+       booktabs = F, align = "c")
+```
+
+It is evident that there is one __giant component__ that includes most of the nodes of the transmission network, and 5 __isolated nodes__. For further analysis, only the giant component was investigated since it represents the core structure of the network and is essential for understanding overall connectivity, information flow, and identifying key nodes or patterns that could significantly impact network behavior.
+
+\small
+```{r sub-graph, warning=F, message=FALSE}
+power_subgraph <- decompose (power_network)[[1]]
+vcount (power_subgraph) /vcount (power_network) # .989
+```
+\normalsize
+
+The obtained network includes almost 99% of the nodes from the initial transmission network, which implies that there was no noticeable loss of information caused.
+
+# Descriptive statistics - centrality measures
+
+Centrality measures are fundamental in network analysis, providing insights into the characteristics and functional dynamics of complex networks. These measures are pivotal for identifying the most influential or significant nodes within a network, thereby elucidating the roles and positions of various entities in relational contexts. By quantifying the prominence of nodes based on different criteria, centrality measures enable to lok for patterns of connectivity and interaction, which are essential for understanding the overall topology of the network.
+
+## Degree distribution 
+
+The __node degree distribution__ is an essential characteristic of the network that provides information on the static situation of the network: it describes the frequency of each degree within the network, highlighting the connectivity pattern among nodes. A degree distribution can indicate whether a network follows a uniform, random, or scale-free topology. Analyzing this distribution helps identify key nodes with high connectivity, which can be crucial for understanding the robustness and vulnerability of the network. Furthermore, it provides insights into the potential efficiency and resilience of the network under various conditions.
+
+The degree centrality is computed just as: 
+
+\[
+C_D(v) = \deg(v)
+\]
+
+In this formula, $\deg(v)$ represents the degree of node $v$, which is the number of edges connected to $v$.
+
+```{r degree-dist, echo=F,out.height='60%', out.width='90%', fig.align='center', fig.keep = 'hold', fig.cap='Degree distribution and the log-log degree distribution for the transmission network', warning=FALSE, message=FALSE}
+d_power <- igraph::degree (power_subgraph)
+dd <- degree_distribution (power_subgraph)
+d <- 1:max(d_power)
+ind <- (dd != 0)
+
+data <- data.frame(d = d[ind], dd = dd[ind])
+
+log_log <- ggplot(data, aes(x = log(d), y = log(dd))) +
+  geom_point(col =1, fill = col_pal [1], pch=21, size = 5) +
+  labs(title = "Log-Log Degree Distribution", x = "Log-Degree", y = "Log-Intensity") +
+  theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+
+degree_hist <- ggplot(data = data.frame(value = d_power)) +
+    geom_histogram(aes(x = value), binwidth = 1, fill = col_pal[1], col = 1) +
+    scale_x_continuous(breaks = seq(0, max(d), by = 1))+
+    labs(title = "Degree distribution", x = "Value", y = "Frequency") + 
+    theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+plots_degree <- degree_hist + log_log
+
+print (plots_degree)
+#ggsave ("plots_degree.png", width = 14, height = 8)
+```
+
+The plots provide insight into the degree distribution and potential scale-free nature of the network.
+
+Degree Distribution (Left Plot):
+
+- **Observation**:
+  - Skewed right, most nodes have a low degree.
+  - Highest frequency at degree 1 and 2.
+  - Fewer nodes with higher degrees; frequency decreases significantly with higher degrees.
+  - Typical of power-law distribution or scale-free networks.
+
+Log-Log Degree Distribution (Right Plot):
+- **Observation**:
+  - Roughly linear trend in log-log scale.
+  - Indicates degree distribution follows a power-law.
+  - Supports the scale-free network hypothesis with few highly connected hubs.
+
+Key Insights:
+- **Network Structure**: Likely scale-free with a few hubs and many low-degree nodes.
+- **Hub Nodes**: Important in the network, indicating high influence or control points.
+- **Robustness and Vulnerability**: Robust to random failures but vulnerable to targeted attacks on hubs.
+- **Real-World Implications**: Common in social networks, the internet, and biological networks.
+
+Overall, these plots suggest a scale-free network with a power-law degree distribution, highlighting crucial aspects of its topology and behavior.
+
+The degree distribution of the analysed network is highly skewed, with most of the transmission networks having low degree $(2)$, and significantly fewer high-degree nodes.
+
+It is also of interest to investigate the average degree of neighbors for the vertices, since it will allow to gain insight into the possible connection that exist between vertices of different degrees. 
+
+```{r neigh-degree, echo=F,out.height='70%', out.width='70%', fig.align='center', fig.keep = 'hold', fig.cap='Scatterplot for the degree distribution of the nodes with respect to the degree distributions of the neighbouring nodes', warning=FALSE, message=FALSE}
+avg_neighbour_degree <- igraph::knn (power_subgraph, V (power_subgraph))$knn
+df_n<- data.frame (degree = d_power[complete.cases(avg_neighbour_degree)], degree_n = na.omit (avg_neighbour_degree))
+scatter_avg_n <- ggplot(df_n, aes(x = degree, y = degree_n)) +
+    geom_point(size = 4, pch = 21, col =1, fill = col_pal [1]) + 
+    labs(x = "vertex degree", y = "average neighbour degree") + 
+    scale_x_continuous(breaks = seq(0, max(df_n$degree), by = 2))+
+    scale_y_continuous(breaks = seq(0, max(df_n$degree_n), by = 2))+
+    ggtitle("Vertex degree Vs Average neighbourhood degree") +
+    theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+scatter_avg_n
+#ggsave ("plot_scatter_avg_n.png", height = 8, width = 14)
+```
+
+*Figure \@ref(fig:neigh-degree)* demonstrates that the nodes with high degree do not link with other nodes with high degrees, instead the trend that vertices with degrees higher than $7$ do not link with vertices that have degrees $10$ or higher. This observation allows to make a preliminary suggestion that the possible 'hubs' are not directly connected to each other.
+
+- **Observation**:
+  - Generally, lower-degree vertices tend to have neighbors with higher average degrees.
+  - As vertex degree increases, the average neighborhood degree tends to decrease.
+  - This trend suggests that high-degree nodes are often connected to low-degree nodes, indicative of a disassortative mixing pattern.
+
+Key Insights:
+- **Network Structure**: The negative correlation between vertex degree and average neighborhood degree.
+- **Disassortative Mixing**: High-degree nodes tend to connect with low-degree nodes, a common trait in many real-world networks like the internet.
+- **Implications**: This pattern affects the robustness and dynamics of the network, influencing things like spread of information or resilience to attacks.
+
+Overall, the plot highlights a disassortative mixing pattern in the network, where high-degree nodes prefer connections with low-degree nodes.
+
+## Closeness and betweenness distributions
+
+The closeness centrality distribution represents the frequency of nodes based on their closeness centrality scores, which measure how quickly a node can reach all other nodes in the network. Analyzing this distribution helps identify nodes that have the shortest average path length to all other nodes, indicating their efficiency in information dissemination or resource access within the network.
+The closeness centrality is computed as:
+
+\[
+C_C(v) = \frac{1}{\sum_{u \neq v} d(v, u)}
+\]
+
+Where, $C_C(v)$  is the closeness centrality of node  $v$, $d(v, u)$  is the shortest path distance between nodes $v$ and $u$.
+
+The betweenness distribution represents the frequency of nodes based on their betweenness centrality, indicating how often nodes act as intermediaries in the shortest paths between other nodes. Analyzing this distribution helps in identifying nodes that play crucial roles in facilitating communication and connectivity within the network, basically bridges and bottlenecks which control the flow of information. 
+
+The between centrality measure is computed as: 
+
+\[
+C_B(v) = \sum_{s \neq v \neq t} \frac{\sigma_{st}(v)}{\sigma_{st}}
+\]
+
+Where $\sigma_{st}$ is the total number of shortest paths from node $s$ to node $t$, and  $\sigma_{st}(v)$  is the number of those paths that pass through node $v$.
+
+```{r centralities,echo=F,out.height='60%', out.width='90%', fig.align='center', fig.keep = 'hold', fig.cap='Distributions of the closeness and betweenness centralities', warning=FALSE, message=FALSE}
+btw <- betweenness(power_subgraph, directed = F)
+cls <- closeness (power_subgraph) 
+btw_hist <- ggplot(data = data.frame(value = btw)) +
+    geom_histogram(aes(x = value), fill = col_pal [1], col = 1, binwidth = 5000) +
+    #scale_x_continuous(breaks = seq(0, max(btw), by = 5000))+
+    labs(title = "Betweenness centrality distribution", x = "Value", y = "Frequency") + 
+    theme(plot.title = element_text(size = 11.5, face = "bold", hjust = 0.5))#
+cls_hist <- ggplot(data = data.frame(value = na.omit(cls))) +
+    geom_histogram(aes(x = value), fill = col_pal[1], col = 1) +
+    #scale_x_continuous(breaks = seq(0, max(cls), by = 2))+
+    labs(title = "Closeness centrality distribution", x = "Value", y = "Frequency") + 
+    theme(plot.title = element_text(size = 11.5, face = "bold", hjust = 0.5))
+plot_centralities <- cls_hist + btw_hist 
+
+print (plot_centralities)
+#ggsave ("plot_centralities.png", height = 8, width = 14)
+```
+
+Spatial embeddedness and planarity of urban infrastructure networks limit the range of their node degree values. In principle indeed a power grid should show a hierarchical structure where a few critical distribution nodes have very high degree, while generation nodes should show low degree (i.e. a plant is connected to a transformer/substation) and the global topology, speficically on a nationwide scale, is composed by a grid of the longest possible transmission lines, in order to preserve efficiency during the transmission itself.  Therefore, pursuing analysis based on the distribution of node degrees e.g. scale free aspect could not be accomplished in such networks. This kind of network though is unsurprisingly characterized by some power law distribution in betweenness centrality. Thus, scale free aspect could be observed in the betweenness centrality distribution. 
+
+```{r btw-distr,echo=F,out.height='70%', out.width='80%', fig.align='center', fig.keep = 'hold', fig.cap='Linear and Poisson Fits for betweenness centrality distribution', warning=FALSE, message=FALSE}
+fd <- degree_distribution(power_subgraph)
+fd <- fd[-1]
+d <- seq_along(1:length(fd)-1)
+dd_df <- data.frame(d = d, fd = fd)
+dd_df$log_d <- log(dd_df$d)
+dd_df$log_fd <- log(dd_df$fd)
+
+# fit a linear regression model
+m0 <- lm(log_fd ~ log_d, data = dd_df)
+# fit a Poisson regression model
+m1 <- glm(fd ~ log_d, family = poisson(link = "log"), data = dd_df)
+pred_poisson <- predict(m1, type = "response")
+
+plot_fits <- ggplot() +
+  geom_line(data = dd_df, aes(x = log_d, y = predict(m0), color = "Linear fit"), linetype = "dashed" , size = 1.1) +
+  geom_line(data = dd_df, aes(x = log_d, y = log(pred_poisson), color = "Poisson fit"), linetype = "dashed",size = 1.1) +
+  geom_point(data = dd_df, aes(x = log_d, y = log_fd,color = "Original data"), size = 3.5) +
+  geom_line(data = dd_df, aes(x = log_d, y = log_fd, color = "Original data"), size = .6, linetype = "dashed") + 
+  labs(x = "log-betwenness", y = "log betweenness distribution", title = "Log-Log Plot with Linear and Poisson Fits") +
+  scale_color_manual(values = c("Original data" = col_pal [5], 
+                                "Linear fit" = col_pal [3], 
+                                "Poisson fit" = col_pal [4])) +
+   theme(plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+          legend.position.inside = c(.88, .88),  
+          legend.direction = "vertical",
+          legend.text = element_text(size = 12),
+          legend.title = element_blank(), 
+          legend.background = element_rect(fill = "white", color = "black", linewidth = 0.5), 
+          legend.box.background = element_rect(color = "black", linewidth = 0.5)) +
+
+  guides(colour = guide_legend(override.aes = list(linetype = c(2, 3, 2), 
+                                                   size = c(3, 1, 1),
+                                                   shape = c(NA, 16, NA))))
+
+print (plot_fits)
+#ggsave ("plot_fits.png", height = 8, width = 14)
+```
+
+The analysis have displayed a decently well behaved fit both for the linear and the Poisson models but the linear model seems to have better catched the overall shape of the original data. 
+
+## Eigenvector centrality and clustering coefficients
+
+The eigenvector centrality distribution captures the frequency of nodes based on their eigenvector centrality scores, reflecting the influence of each vertex not only by their direct connections but also by the importance of their neighbors. Analyzing this distribution helps identify the most influential nodes in terms of their overall connectivity and the centrality of their neighbors.
+
+The clustering coefficient distribution shows instead the frequency of nodes based on their clustering coefficient values, indicating the tendency of nodes to form tightly knit groups or clusters. This distribution provides insights into the network’s local cohesiveness and the prevalence of subgraph structures.
+The eigenvector centrality is computed as: 
+
+\[
+C_E(v) = \frac{1}{\lambda} \sum_{u \in N(v)} A_{uv} C_E(u)
+\]
+
+Where $C_E(v)$ is the eigenvector centrality of node $v$, $\lambda$ is the largest eigenvalue of the adjacency matrix $A$, $N(v)$ is the set of neighbors of  $v$, $A_{uv}$ is the element of the adjacency matrix indicating the presence $(1)$ or absence $(0)$ of an edge between nodes  $u$  and  $v$.
+
+The clustering coefficents instead are computed as: 
+
+\[
+C(v) = \frac{2e_v}{k_v(k_v - 1)}
+\]
+
+Where, $C(v)$ is the clustering coefficient of node $v$, $e_v$ is the number of edges between the neighbors of node $v$, $k_v$ is the degree of node $v$, which is the number of neighbors of $v$.
+
+```{r eig-transit,echo=F,out.height='60%', out.width='90%', fig.align='center', fig.keep = 'hold', fig.cap='Distributions of the eigenvecotr centrality and the local clustering coefficients', warning=FALSE, message=FALSE}
+eigen_centrality <- eigen_centrality(power_subgraph)$vector
+
+clustering_coeff <- transitivity(power_subgraph, type = "local", isolates = "zero")
+
+# histogram for eigenvector centrality
+eigen_hist <- ggplot(data = data.frame(value = eigen_centrality)) +
+    geom_histogram(aes(x = value), fill = col_pal [1], col = 1, lwd=0.2, binwidth = 0.05) +
+    labs(title = "Eigenvector Centrality Distribution", x = "Value", y = "Frequency") +
+    theme(plot.title = element_text(size = 11.2, face = "bold", hjust = 0.5))
+
+# histogram for clustering coefficient
+clustering_hist <- ggplot(data = data.frame(value = clustering_coeff)) +
+    geom_histogram(aes(x = value), fill = col_pal [1], col = 1, lwd = 0.2, binwidth = 0.05) +
+    labs(title = "Clustering Coefficient Distribution", x = "Value", y = "Frequency") +
+    theme(plot.title = element_text(size = 11.2, face = "bold", hjust = 0.5))
+
+eig_cl <- eigen_hist + clustering_hist
+
+print (eig_cl)
+#ggsave("eigen_cl.png", width = 14, height = 8)
+```
+
+
+## Preliminary conclusion on centralities results
+
+Before conducting a more in depth resilience analysis for targeted attacks prevention some preliminary conclusion may be assessed based on the topology features that the study of descriptive statistics has enlighted. It's useful to anticipate that when the proper analysis will be conducted, it will consist on an iterative procedure of identification of critical points which, if disrupted, would bring down the biggest possible network component. This is procedure is similar, rather quite refined, but iterative, meaning that once a node is brought down the computation is repeated on the main component that's left, in order to consistently identify the set containing the most critical nodes.
+
+The descriptive plots actually show a weakly connected situation. The network looks quite sparse based on the degree distribution which highlights that most vertices have very low degree, quickly descending as the degrees increase, meaning that very few nodes have a high number of connections. Although a potential scale-free property on the node degree distribution has been previously hypotesized, a proper analysis showed no evidence in this direction. The degree against average neighbourhood degree number also shows that nodes with high degree tend to have a low average degree in their neighbourhood, that is the nodes they're connected to, suggesting a lack of strongly connected clusters. 
+
+Base on the betweenness this kind of sparseness tendence seems to be confirmed. Most nodes have a very low score, meaning that the network has very few interconnecting intermediators, on the countrary it presents several bottlenecks. Notice that the beetweeness seems to fit quite well the scale free property. The closeness measure instead is somehow bell-shaped meaning the efficiency of nodes in providing a way from one node to another is globally kind of Normal. Eventually, eigenvector and clustering coefficient centralities confirm the sparseness. They have a very similar distribution, the clustering coefficients having a much fatter tail. This provides some evidence that even evaluating nodes as being influenced by their neighbourhood, the network shows rare to not at all cohesion
+
+Based on this information, a very preliminary experiment aimed at identify critical nodes may be conducted by choosing a thresholds based intersection between all these metrics, retrieving only nodes that have the strongest centrality features. 
+
+```{r intersection,echo=F,out.height='90%', out.width='90%', fig.align='center', fig.keep = 'hold', fig.cap='Spatial allocations of the nodes with strongest centrality features', warning=FALSE, message=FALSE}
+degree_values <- degree(power_subgraph)
+betweenness_values <- betweenness(power_subgraph)
+closeness_values <- closeness(power_subgraph)
+eigenvector_values <- eigen_centrality(power_subgraph)$vector
+clustering_coeff_values <- transitivity(power_subgraph, type = "local")
+
+centrality_df <- data.frame(
+  id = V(power_subgraph)$name,
+  degree = degree_values,
+  between = betweenness_values,
+  close = closeness_values,
+  eigen = eigenvector_values,
+  cluster_coeff = clustering_coeff_values
+)
+
+# thresholds for strongest node selection
+degree_threshold <- 5
+betweenness_threshold <- 1000
+closeness_threshold <- 0.00022
+eigenvector_threshold <- 1.72e-05
+clustering_coeff_threshold <- 0.1
+# Filter the nodes based on the thresholds
+filtered_nodes <- centrality_df %>%
+  dplyr::filter(degree > degree_threshold,
+         between > betweenness_threshold,
+         close > closeness_threshold,
+         eigen > eigenvector_threshold,
+         cluster_coeff > clustering_coeff_threshold)
+
+vertices_inter = vertices[c(10, 32, 68, 78, 99, 100, 117, 140, 246, 279),]
+
+
+# Plot the map and the points
+plot_intersect <- ggplot() +
+  geom_sf(data = german_districts, fill = "floralwhite") +
+  geom_point(data = vertices_inter, aes(x = lon, y = lat), fill =col_pal[1], size =3, col = 1, pch = 21) +
+  labs(
+    x = "Longitude", 
+    y = "Latitude", 
+    title = "Power Grid Nodes and Edges",
+    subtitle = "",
+    caption = "GeoData from Natural Earth"
+  ) +
+ # coord_sf(xlim = c(-10, 45), ylim = c(35, 70)) +
+  theme_bw() + 
+  theme(
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5), 
+    plot.subtitle = element_text(size = 9, face = "italic", hjust = 0.5), 
+    plot.caption = element_text(size = 5, face = "italic"), 
+    axis.title = element_text(size = 9), 
+    axis.text = element_text(size = 7), 
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 5),
+    axis.text.y = element_text(size = 5),
+    plot.margin = margin(10, 10, 10, 10) 
+  ) 
+
+print (plot_intersect)
+#ggsave ("plot_rm_intersect.png", width = 10, height = 8)
+```
+
+
+## Community detection
+
+Graph partitioning is a fundamental technique in network analysis used to identify substructures or communities within a larger network. This approach can allow to reveal densely connected subgraphs and critical nodes that maintain overall connectivity. This type of analysis is crucial for understanding the organization of the network, which can have significant implications for its resilience and robustness. 
+
+By partitioning the network, we can identify key clusters that may represent critical components or regions within the power grid. This allows us to assess how disruptions in one part of the network might propagate and affect other areas, thereby providing insights into potential vulnerabilities. Additionally, graph partitioning helps in optimizing network maintenance and expansion strategies by highlighting which sections of the network are most critical for stability and efficiency. Therefore, employing graph partitioning in this report not only aids in the detailed understanding of the network's structural properties but also enhances our ability to design targeted interventions to improve the resilience of the transmission system.
+
+Graph partitioning procedure allows to identify clusters of nodes that are similar between each other, but are dissimilar from the other nodes. A clustering procedure was implemented that relies on optimising a _modularity score_, which compares  the concentration of links between groups of nodes compared to what would be expected if the edges were assigned at random (or, if where there is degree heterogeneity but no community structure).
+
+ At each iteration, nodes are added to the community in a way such that the modularity score of the community is increased, until no improvements are observed. The implemented strategy focuses on local improvements, which has a drawback of possibly missing the globally optial solution, but has the advantage of computational efficiency due to the greediness of the implementation, which is especially beneficial for large networks.
+
+
+```{r clustering, warning=FALSE, message=FALSE, echo=FALSE}
+cl_fg <- cluster_fast_greedy(power_subgraph)
+clusters_df <- data.frame (v_id = V (power_subgraph), m_fg = membership (cl_fg),
+                           lon = vertices$lon [vertices$v_id %in% attr (V(power_subgraph), 'names')],
+                           lat = vertices$lat [vertices$v_id %in% attr (V(power_subgraph), 'names')],
+                           distr = vertices$distr[vertices$v_id %in% attr (V(power_subgraph), 'names')])
+v7 <- st_as_sf(clusters_df, coords = c("lon", "lat"), crs = 4326)
+
+cluster_colours <- c ("#5BB79E", "#D8B801",
+                      "#42A62A", "#D0786A",
+                      "#009DE0", "#9C9D9F",
+                      "#AF9E66", "#F8B334",
+                      "#CB593E", "#6AAAC5",
+                      "#F08340", "#97BE0D",
+                      "#0076BC", "#9C9D9F",
+                      "#58CAEC", "#B0DE0F")
+```
+
+As the result of the clustering procedure, 15 clusters were determined in the transmission network. __Validation__ of the graph partitioning was performed by investigating the spatial structure of the obtained clusters.
+
+```{r hulls, warning=FALSE, message=FALSE, echo=FALSE}
+create_hull <- function (label, clust, buffer = F){
+  if (clust == "fg"){
+    points <- v7 [v7$m_fg == label, ]
+  }
+  else {points <- v7 [v7$m_l == label, ]}
+  hull <- points %>%
+    summarise(geometry = st_union(geometry)) %>%
+    st_concave_hull(ratio = .5, allow_holes = F)
+  if (buffer){hull <- st_buffer (hull, dist = 10000, endCapStyle = "ROUND", joinStyle = "ROUND")}
+  
+  hull$labels <- label
+  return (hull)
+}
+
+hulls_l <- lapply (unique (v7$m_fg), function (x) create_hull (x, "fg",buffer = T))
+```
+
+```{r clusters-plot, warning=FALSE, message=FALSE, echo=FALSE,out.height='90%', out.width='90%', fig.align='center', fig.keep = 'hold', fig.cap='Spatial allocation for the nodes membership based on Fast and Greedy clustering procedure' }
+clusters_plot <- ggplot() +
+  geom_sf(data = german_districts, fill = "floralwhite", color = "black") +
+  scale_fill_manual(values = cluster_colours, labels = sapply(1:length(cluster_colours), function(x) paste0("Cluster ", x))) +
+  labs(title = "Cluster Division", fill = "Clusters", x = "Longitude", y = "Latitude") +
+  theme(
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    legend.direction = "vertical",
+    legend.text = element_text(size = 8),
+    legend.title = element_text(size = 8, face = "bold", hjust = .5),
+    text = element_text(size = 8),
+    legend.background = element_rect(fill = "white", color = "black", linewidth = 0.5),
+    legend.box.background = element_rect(color = "black", size = 0.5),
+    plot.margin = margin(10, 10, 10, 10)) +
+  coord_sf()
+
+# add hulls 
+for (i in seq_along(hulls_l)) {
+  clusters_plot <- clusters_plot + geom_sf(data = hulls_l[[i]], aes(fill = factor(labels)), alpha = 0.3)
+}
+# final plot
+clusters_plot <- clusters_plot +
+  geom_sf(data = v7, size = 2, aes(fill = factor(m_fg)), col = 1, pch = 21)
+
+print(clusters_plot)
+#ggsave("plot_clusters.png", plot = clusters_plot, width = 10, height = 8)
+```
+
+As evidenced by *Figure \@ref(fig:clusters-plot)*, the nodes in the network are clustered into similar well-connected groups according to their geographical locations. It is possible to observe that there are more heterogeneous groups formed in the more industrial and densely populated area in the west of Germany, while, for less populated areas, the transmission network nodes form larger structures. This observation is important for the purposes of understanding the possible underlying structure of connectivity in the analysed network.
+
+# Vulnerability analysis
+
+Detecting potential vulnerabilities in the network structure of power grids is of utmost importance due to the significant risks involved. An attack on a country's power grid system can lead to severe consequences, such as widespread blackouts, economic disruption, and compromised public safety (@cetinay2018nodal). In addition to the chance of unexpected power failures or manufacturing defects, it is essential to also consider the ongoing risk of targeted attacks on the electricity transmission network. These attacks aim to exploit weaknesses in the network, potentially causing disruptions in power supply, economic instability, and threats to public safety.
+
+Hence, it is important to perform resilience analysis in order to determine possible weak points of the transmission network, which could allow to anticipate possible disasters, as well as aid in further decision making process.
+
+The effects of the attacks on the transmission network can be assessed using different metrics, among which are the size of the largest components or its capacity. In this analysis, the size of the component will be used as a proxy for the resilience of the network, since it can help gain insight into the magnitude of the disruption that was caused.
+
+The possibility of __random attacks__ is investigated, where the nodes that are removed from the network are chosen randomly, Since this approach will not produce results invariant to permutations, Monte Carlo simulations are used in order to reduce the uncertainty associated with running the experiment.
+
+Additionally, the possibility of __targeted attacks__ is investigated: this approach implies that the most _important_ nodes in the network will be targeted initially, such that the most disruption can be caused while utilising least resources. The importance of the node is defined according to the different __centrality__ metrics that were discussed above. By assessing the consequences of each attack strategy, it will be possible to draw conclusions on which centrality characterises the _importance_ of the vertices best. 
+
+```{r attack-fun, warning=FALSE, message=FALSE, echo=FALSE}
+# input the graph name, the number of node removals, and the string to signal the type of the statistic to use, "random" if left NULL
+targeted_failure_simulation <- function(graph, num_removals, strategy, plot_res = F) {
+  
+  # initialise numeric vector to store component sizes at each removal
+  component_sizes <- numeric(num_removals)
+  # and the nodes removed
+  nodes <- numeric(num_removals)
+  # create a copy of the original graph to perform removals
+  g_current <- graph
+  
+  # iterate for each node to be removed
+  for (i in 1:num_removals) {
+    # Determine the node to remove based on the strategy
+    node_to_remove <- switch(strategy,
+                             "degree" = order(degree(g_current), decreasing = TRUE)[1],
+                             "between" = order(betweenness(g_current), decreasing = TRUE)[1],
+                             "close" = order(closeness(g_current), decreasing = TRUE)[1],
+                             "eigen" = order(eigen_centrality(g_current, directed = F)$vector, decreasing = TRUE)[1],
+                             sample(V(g_current), 1))  # fallback to random
+    
+    # remove the selected node
+    g_current <- delete_vertices(g_current, node_to_remove)
+    # find disconnected components
+    components <- components(g_current)
+    component_sizes[i] <- max(components$csize)
+    nodes[i] <- node_to_remove
+  }
+  
+  if (plot_res) {
+    plot(component_sizes, type = "o", main = "Component Size After Node Removal",
+         xlab = "Number of Nodes Removed", ylab = "Size of Largest Component")
+  }
+  
+  return(data.frame(nodes = nodes, sizes = component_sizes))
+}
+```
+
+
+```{r targ-att, warning=FALSE, message=FALSE, echo=FALSE}
+# simulate targeted attacks
+num_removals <- vcount(power_subgraph) - 1 # leave one node to avoid using max() on empty set
+strategies <- c("degree", "between", "close", "eigen")
+results <- setNames(lapply(strategies, function(strategy) {
+  targeted_failure_simulation(power_network, num_removals, strategy)
+}), strategies)
+```
+
+
+```{r mc-rand-att, warning=FALSE, message=FALSE, echo=FALSE}
+#set.seed (17)
+#mc_random <- replicate (1000, targeted_failure_simulation(power_subgraph, num_removals, strategy = "random"))
+#saveRDS (mc_random, "mc_random.RDS")
+mc_random <- readRDS ("mc_random.RDS")
+mc_means <- apply (mc_random, 1, mean)
+```
+
+
+```{r plot-att, warning=FALSE, message=FALSE, echo=FALSE, echo=FALSE,out.height='60%', out.width='80%', fig.align='center', fig.keep = 'hold', fig.cap='Consequences of implementing different attack strategies on the transmission network'}
+results_df <- data.frame("degree" = results$degree$sizes,
+                         "between" = results$between$sizes,
+                         "close" = results$close$sizes,
+                         "eigen" = results$eigen$sizes,
+                         "random" = mc_means)
+results_df$removal <- 1:num_removals
+results_melted <- melt(results_df, id.vars = "removal", variable.name = "Strategy",value.name = "Component_Size")
+plot_attacks <- ggplot(results_melted, aes(x = removal, y = Component_Size, color = Strategy)) +
+    geom_line(linewidth = 1, linetype = 1) +
+    geom_point(size = .1) +  # Add points to the lines
+    scale_color_manual(values = c (col_pal [5], col_pal [2], col_pal [3], col_pal [10],col_pal [1]), labels = c ('Degree', 'Betweenness', 'Closeness', 'Eigenvector',  'Random'))+
+   # scale_color_brewer(palette = "Paired", 
+    #                   labels = c('Degree', 'Betweenness', 'Closeness', 'Eigenvector', 'Random')) +  
+    labs(x = "Number of Node Removals", y = "Size of Giant Component", title = "Failure Simulation", color = "Strategy") +
+    theme(plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+          legend.position = c(.85, .75),  
+          legend.direction = "vertical",
+          legend.text = element_text(size = 10),
+          legend.title = element_text(size = 10, face = "bold", hjust = .5),  # Bold legend title
+          text = element_text(size = 10),
+          legend.background = element_rect(fill = "white", color = "black", linewidth = 0.5),  # Box with thin black line
+          legend.box.background = element_rect(color = "black", size = 0.5)) +
+    guides(color = guide_legend(override.aes = list(
+        linetype = 1,  
+        shape = 16,    
+        size = 2       
+    ))) +
+    coord_cartesian (xlim =  c  (1,200))
+plot_attacks
+#ggsave ("plot_attacks_1.png", width = 14, height = 8)
+```
+
+*Figure \@ref(fig:plot-att)* allows to compare the effects of the implemented strategies on the transmission network. It is evident that __random__ attack does not provide significant disruptions to the transmission network, giving evidence of its relative robustness to natural disasters. 
+
+Implementing strategy based on the __closeness__ centrality leads to significant damage in the beginning of the attack, with decreasing the size of the giant component in half while removing only 11 nodes, while further damages are very ineffective and, at some points, are similar to the random attack consequences.
+
+Using __eigenvector__ and __degree__ centralities provide quite similar results, 
+
+The degree centrality provides information on the structure of the network in the nearest proximity of the node, which is not necessarily a proper representation of the centrality of a node in the full network.
+
+The __betweenness__ attacks providing fastest drop in the giant component size, hence providing the most efficient attack strategy with the least amount of resources used. By incorporating information on the number of the shortest paths passing through each vertex, this centrality measure provides information on the global network structure, thus explaining the efficiency of using this metric in the attack strategy.
+
+
+Investigation into which nodes are removed to achieve the disruption to the size of giant component equal to 100 is conducted for the 2 most efficient strategies, in order to determine if there are possible trends that explain their importance.
+
+```{r rm-nodes, warning=FALSE, message=FALSE, echo=FALSE, echo=FALSE,out.height='80%', out.width='100%', fig.align='center', fig.keep = 'hold', fig.cap='Consequences of implementing different attack strategies on the transmission network'}
+btw_rm_nodes <- results_df$between [results_df$between >=100]
+df_nodes_b <- data.frame ( vertices [vertices$v_id %in% btw_rm_nodes,])
+v8 <- st_as_sf(df_nodes_b, coords = c("lon", "lat"), crs = 4326)
+
+nuts3 <- get_eurostat_geospatial(nuts_level = 3, year = "2016", resolution = "20", output_class = "sf")
+germany_nuts3 <- nuts3 %>% filter(str_sub(NUTS_ID, 1, 2) == "DE")
+pop_density <- get_eurostat("demo_r_d3dens", filters = list(geo = substr(germany_nuts3$NUTS_ID, 1, 5)))
+
+pop_density_recent <- pop_density %>%
+  filter(time == max(time)) %>%
+  select(geo, values) %>%
+  rename(NUTS_ID = geo, density = values)
+
+germany <- germany_nuts3 %>%
+  left_join(pop_density_recent, by = "NUTS_ID")
+
+# interpolating missing values:
+germany <- germany %>%
+  mutate(density = na.approx(density, na.rm = FALSE))
+
+my_palette <- colorRampPalette(c("lightyellow", "orange", "red", "darkred"))(100)
+
+custom_breaks <- c(10, 50,100, 300, 800, 2000, 4000)
+
+rm_nodes_plot <- ggplot((germany)) +
+  geom_sf(aes(fill = density), alpha = .9999) +
+  scale_fill_gradientn(colors = my_palette, trans = "pseudo_log", 
+                       breaks = custom_breaks, labels = scales::comma) +
+  geom_sf(data = v8, color = 1,fill = "darkslategrey",pch=21 ,size = 4)+
+  labs(title = "Nodes removed in betweenness strategy attack",
+       fill = "Density",  x = "Longitude", y = "Latitude") +
+   theme(plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+          #legend.position = c(.88, .78),  
+          legend.direction = "vertical",
+          legend.text = element_text(size = 10),
+          legend.title = element_text(size = 10, face = "bold", hjust = .5),  # Bold legend title
+          text = element_text(size = 10),
+          legend.background = element_rect(fill = "white", color = "black", linewidth = 0.5),  # Box with thin black line
+          legend.box.background = element_rect(color = "black", size = 0.5),
+         plot.margin = margin(10, 10, 10, 10)) 
+
+print (rm_nodes_plot)
+#ggsave ("plot_nodes_attack.png", width =10, height = 8)
+```
+
+*Figure \@ref(fig:rm-nodes)* provides compelling evidence that the impact of node removal on network disruption varies significantly based on population density. In densely populated areas, the infrastructure and key nodes appear to be more robust, requiring the removal of multiple nodes to achieve substantial disruption. This resilience is likely due to higher connectivity and redundancy in densely populated networks, which are designed to withstand multiple failures.
+Conversely, in sparsely populated areas, the removal of even one or two nodes causes considerable disruption to the transmission network. This observation underscores the critical role of these nodes in maintaining network integrity within less densely connected regions. The vulnerability of such networks to single-node failures highlights the importance of strategic node placement and robust network planning, particularly in areas with lower population density where network resources may be more limited.
+
+
+# Conclusions
+
+The German transmission network, characterized by a scale-free topology, exhibits a structure where a few highly connected hubs coexist with numerous sparsely connected nodes. This configuration makes the network robust to random failures but highly vulnerable to targeted attacks on critical nodes. Resilience analysis underscores the importance of protecting high-betweenness nodes to maintain network integrity against deliberate disruptions. This highlights the necessity for strategic reinforcement and robust network planning, especially concerning nodes with high connectivity and criticality.
+
+Furthermore, the critical role of nodes in less populated areas in maintaining overall network integrity cannot be overlooked. Strategic node placement and robust planning are essential to ensure resilience across the entire network. Extending the analysis to incorporate weighted graphs, which account for attributes of the edges, can provide deeper insights into the power flow within the transmission network. Additionally, expanding this work to cover larger geographical areas, given the availability of data, can further enhance understanding and resilience planning for the transmission network.
+
+\newpage
+
+# References
+
+
+
+
+
+
+
+
+
+
+
+
+
