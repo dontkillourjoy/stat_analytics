@@ -1,5 +1,7 @@
 # Applied Analytics & Computational Statistics
 
+This repository showcases projects exploring traditional statistical analysis, including exploration of statistical methodology and implementation of computationally expensive techniques. Each project provides a thorough analysis of the theory alongside practical applications tailored to different domains.
+
 - [Bayesian Hierarchical Meta-Analysis](#bayesian-hierarchical-meta-analysis)
 - [Statistical Network Analysis](#statistical-network-analysis)
 - [Adaptive Rejection Metropolis Samping](#adaptive-rejection-metropolis-samping)
