@@ -35,9 +35,9 @@ The analysis provides insights into the structure of the German **power transmis
   <i>Germany population density overlaid by targeted nodes</i>
 </p>
 
-<small><small><small><i> The Statistical Methods for [Network Data](https://docenti.unicatt.it/ppd2/it/docenti/85213/luis-carvalho/didattica) course provides a gentle introduction into the concepts of statistical network analysis, including descriptive statistics and centralities, sampling approaches for networks, common network models and community detection approaches. (III trimester, 2023-2024 a.y.)</i>
+<small><small><small><small><small><i> The Statistical Methods for [Network Data](https://docenti.unicatt.it/ppd2/it/docenti/85213/luis-carvalho/didattica) course provides a gentle introduction into the concepts of statistical network analysis, including descriptive statistics and centralities, sampling approaches for networks, common network models and community detection approaches. (III trimester, 2023-2024 a.y.)</i>
 
-<i>Project completed in collaboration with Poetto Patrick </i></small></small></small>
+<i>Project completed in collaboration with Poetto Patrick </i></small></small></small></small></small>
 
 # Adaptive Rejection Metropolis Samping
 
