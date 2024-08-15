@@ -4,10 +4,7 @@
 - [Statistical Network Analysis](#statistical-network-analysis)
 - [Adaptive Rejection Metropolis Samping](#adaptive-rejection-metropolis-samping)
 - [Linear Regression Modelling](#linear-regression-modelling)
-t {
- font-family: Arial;
- font-size: 6px;
-}
+
 
 # Bayesian Hierarchical Meta-Analysis
 
@@ -23,9 +20,9 @@ The aim of the analysis is to investigate the efficacy of beta-blockers in reduc
 
 A Bayesian hierarchical model was implemented for this purpose, which allows to  simultaneously model both individual study-level variability, and the variability between the different studies. This provides the benefit of allowing the **borrowing of information** between the studies, which leads to a more comprehensive modelling. Naturally, Bayesian methodology allows to incorporate prior uncertainty in the model, and it provides a coherent framework where posterior distributions quantify the uncertainty in model parameters. In the analysis, the **hierarchical** model specification and inference were followed by **shrinkage** investigation and **sensitivity** analysis. Additionally, the resulting hierarchical model was compared to simpler **non-hierarchical** structures.
 
-<t><i> The course [Bayesian Modelling](https://www.unicatt.it/upl/proguc/MI/2023/ENG/interfac_eco_mate/2I4A_Bayesian_modelling_Castelletti_Consonni.docx) covered comprehensively the foundational concepts of Bayesian Methodology, including posterior update, approaches to prior specifications, hierarchical modelling, Bayesian generalised regression modelling, with model inference and variable selection, elements of graphical modelling, and computational approaches: MCMC Gibbs and Metropolis-Hastings sampling methods. (III trimester, 2022-2023 a.y.)</i>
+<sub><i> The course [Bayesian Modelling](https://www.unicatt.it/upl/proguc/MI/2023/ENG/interfac_eco_mate/2I4A_Bayesian_modelling_Castelletti_Consonni.docx) covered comprehensively the foundational concepts of Bayesian Methodology, including posterior update, approaches to prior specifications, hierarchical modelling, Bayesian generalised regression modelling, with model inference and variable selection, elements of graphical modelling, and computational approaches: MCMC Gibbs and Metropolis-Hastings sampling methods. (III trimester, 2022-2023 a.y.)</i>
 
-<i>Project completed in collaboration with Corrà Sara </i></t>
+<i>Project completed in collaboration with Corrà Sara </i></sub>
 
 # Statistical Network Analysis
 
@@ -39,9 +36,9 @@ The analysis provides insights into the structure of the German **power transmis
   <i>Germany population density overlaid by targeted nodes</i>
 </p>
 
-<small><small><small><small><small><i> The Statistical Methods for [Network Data](https://docenti.unicatt.it/ppd2/it/docenti/85213/luis-carvalho/didattica) course provides a gentle introduction into the concepts of statistical network analysis, including descriptive statistics and centralities, sampling approaches for networks, common network models and community detection approaches. (III trimester, 2023-2024 a.y.)</i>
+<sup><i> The Statistical Methods for [Network Data](https://docenti.unicatt.it/ppd2/it/docenti/85213/luis-carvalho/didattica) course provides a gentle introduction into the concepts of statistical network analysis, including descriptive statistics and centralities, sampling approaches for networks, common network models and community detection approaches. (III trimester, 2023-2024 a.y.)</i>
 
-<i>Project completed in collaboration with Poetto Patrick </i></small></small></small></small></small>
+<i>Project completed in collaboration with Poetto Patrick </i></sup>
 
 # Adaptive Rejection Metropolis Samping
 
@@ -53,9 +50,9 @@ This is a **research** project investigating the Adaptive Rejection Metropolis S
   <i>An example of the envelope for the ARMS sampling</i>
 </p>
 
-<small><i> The [Computational Statistics](https://www.unicatt.it/upl/proguc/MI/2023/ENG/interfac_eco_mate/2I4A_Computational_Statistics_Denti.docx) course gave a comprehensive and detailed overview of the cruicial concepts, such as random number generation, Monte Carlo simulations, bootstrap and jacknife, numerical approximation methods and expectation and maximisation algorithm. Both theoretical and computational aspects of the concepts were covered exhaustively. (III trimester, 2022-2023 a.y.)</i> 
+<sub><sup><i> The [Computational Statistics](https://www.unicatt.it/upl/proguc/MI/2023/ENG/interfac_eco_mate/2I4A_Computational_Statistics_Denti.docx) course gave a comprehensive and detailed overview of the cruicial concepts, such as random number generation, Monte Carlo simulations, bootstrap and jacknife, numerical approximation methods and expectation and maximisation algorithm. Both theoretical and computational aspects of the concepts were covered exhaustively. (III trimester, 2022-2023 a.y.)</i> 
 
-<i>Project completed in collaboration with Corrà Sara </i></small>
+<i>Project completed in collaboration with Corrà Sara </i></sub></sup>
 
 # Linear Regression Modelling
 
