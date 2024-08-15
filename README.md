@@ -30,7 +30,7 @@ A Bayesian hierarchical model was implemented for this purpose, which allows to 
 The analysis provides insights into the structure of the German **power transmission network**, and attempts to investigate potential **vulnerability** points that might lead to disruptions of the electricity flow in cases of targeted or random attacks on the network. The project was inspired by the [**SciGRID**](https://www.power.scigrid.de/) project, which was created for the purpose of developing automated generation of models of power grids for the purposes of research and practical applications. The **structure** of the network was analysed, with the main centralities investigated and the results compared. Clustering was performed using a **fast and greedy** approach. Finally, **resilience analysis** was performed by using various approaches, which evidenced that the most efficient **attack strategy** node removal is coherent with population density levels, indicating the importance of robust network planning.
 
 <p align="center">
-  <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/network_analysis/aux_files/targeted.png" alt="Germany population density overlaid by targeted nodes" width="600"/>
+  <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/network_analysis/aux_files/targeted.png" alt="Germany population density overlaid by targeted nodes" width="400"/>
   <br/>
   <i>Germany population density overlaid by targeted nodes</i>
 </p>
