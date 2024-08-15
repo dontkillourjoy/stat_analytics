@@ -4,6 +4,10 @@
 - [Statistical Network Analysis](#statistical-network-analysis)
 - [Adaptive Rejection Metropolis Samping](#adaptive-rejection-metropolis-samping)
 - [Linear Regression Modelling](#linear-regression-modelling)
+t {
+ font-family: Arial;
+ font-size: 6px;
+}
 
 # Bayesian Hierarchical Meta-Analysis
 
@@ -19,9 +23,9 @@ The aim of the analysis is to investigate the efficacy of beta-blockers in reduc
 
 A Bayesian hierarchical model was implemented for this purpose, which allows to  simultaneously model both individual study-level variability, and the variability between the different studies. This provides the benefit of allowing the **borrowing of information** between the studies, which leads to a more comprehensive modelling. Naturally, Bayesian methodology allows to incorporate prior uncertainty in the model, and it provides a coherent framework where posterior distributions quantify the uncertainty in model parameters. In the analysis, the **hierarchical** model specification and inference were followed by **shrinkage** investigation and **sensitivity** analysis. Additionally, the resulting hierarchical model was compared to simpler **non-hierarchical** structures.
 
-<small><small><i> The course [Bayesian Modelling](https://www.unicatt.it/upl/proguc/MI/2023/ENG/interfac_eco_mate/2I4A_Bayesian_modelling_Castelletti_Consonni.docx) covered comprehensively the foundational concepts of Bayesian Methodology, including posterior update, approaches to prior specifications, hierarchical modelling, Bayesian generalised regression modelling, with model inference and variable selection, elements of graphical modelling, and computational approaches: MCMC Gibbs and Metropolis-Hastings sampling methods. (III trimester, 2022-2023 a.y.)</i>
+<t><i> The course [Bayesian Modelling](https://www.unicatt.it/upl/proguc/MI/2023/ENG/interfac_eco_mate/2I4A_Bayesian_modelling_Castelletti_Consonni.docx) covered comprehensively the foundational concepts of Bayesian Methodology, including posterior update, approaches to prior specifications, hierarchical modelling, Bayesian generalised regression modelling, with model inference and variable selection, elements of graphical modelling, and computational approaches: MCMC Gibbs and Metropolis-Hastings sampling methods. (III trimester, 2022-2023 a.y.)</i>
 
-<i>Project completed in collaboration with Corrà Sara </i></small></small>
+<i>Project completed in collaboration with Corrà Sara </i></t>
 
 # Statistical Network Analysis
 
