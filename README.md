@@ -22,8 +22,6 @@ The aim of the analysis is to investigate the efficacy of beta-blockers in reduc
 
 A Bayesian hierarchical model was implemented for this purpose, which allows to  simultaneously model both individual study-level variability, and the variability between the different studies. This provides the benefit of allowing the **borrowing of information** between the studies, which leads to a more comprehensive modelling. Naturally, Bayesian methodology allows to incorporate prior uncertainty in the model, and it provides a coherent framework where posterior distributions quantify the uncertainty in model parameters. In the analysis, the **hierarchical** model specification and inference were followed by **shrinkage** investigation and **sensitivity** analysis. Additionally, the resulting hierarchical model was compared to simpler **non-hierarchical** structures.
 
-<sub><i> The course [Bayesian Modelling](https://www.unicatt.it/upl/proguc/MI/2023/ENG/interfac_eco_mate/2I4A_Bayesian_modelling_Castelletti_Consonni.docx) covered comprehensively the foundational concepts of Bayesian Methodology, including posterior update, approaches to prior specifications, hierarchical modelling, Bayesian generalised regression modelling, with model inference and variable selection, elements of graphical modelling, and computational approaches: MCMC Gibbs and Metropolis-Hastings sampling methods. (III trimester, 2022-2023 a.y.)</i></sub>
-
 <sub><i> Project completed in collaboration with Corrà Sara </i></sub>
 
 # Statistical Network Analysis
@@ -38,8 +36,6 @@ The analysis provides insights into the structure of the German **power transmis
   <i>Germany population density overlaid by targeted nodes</i>
 </p>
 
-<sub><i> The Statistical Methods for [Network Data](https://docenti.unicatt.it/ppd2/it/docenti/85213/luis-carvalho/didattica) course provides a gentle introduction into the concepts of statistical network analysis, including descriptive statistics and centralities, sampling approaches for networks, common network models and community detection approaches. (III trimester, 2023-2024 a.y.)</i></sub>
-
 <sub><i>Project completed in collaboration with Poetto Patrick </i></sub>
 
 # Adaptive Rejection Metropolis Samping
@@ -51,8 +47,6 @@ This is a **research** project investigating the Adaptive Rejection Metropolis S
   <br/>
   <i>An example of the envelope for the ARMS sampling</i>
 </p>
-
-<sub><i> The [Computational Statistics](https://www.unicatt.it/upl/proguc/MI/2023/ENG/interfac_eco_mate/2I4A_Computational_Statistics_Denti.docx) course gave a comprehensive and detailed overview of the cruicial concepts, such as random number generation, Monte Carlo simulations, bootstrap and jacknife, numerical approximation methods and expectation and maximisation algorithm. Both theoretical and computational aspects of the concepts were covered exhaustively. (III trimester, 2022-2023 a.y.)</i></sub>
 
 <sub><i>Project completed in collaboration with Corrà Sara </i></sub>
 
@@ -69,7 +63,3 @@ The aim of the project is to investigate whether the rapid decline in the <b>hon
 </p>
 
 The analysis was conducted for 34 US states for the year 2016, with the **multiple regression model** specified used for inference and prediction purposes, with variable selection and model diagnostic steps of the analysis adhered to.
-
-<sub><i>The project was completed as part of the final examination for the [Applied Linear Models](https://www.unicatt.eu/courses/data-analytics-for-business-milan-23-24-curriculum) course, which introduces the basic linear regression concepts, putting an emphasis on understanding the theoretical assumptions of the models, the variable selection and model diagnostics process, and expands to the generalised linear models, providing methodology to model with in a wider range of situations. <i> (II trimester, 2022-2023 a.y.)</i></sub>
-
-
