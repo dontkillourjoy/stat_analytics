@@ -1,6 +1,6 @@
 # Applied Analytics & Computational Statistics
 
-This repository showcases projects exploring traditional statistical analysis, including exploration of statistical methodology and implementation of computationally expensive techniques. Each project provides a thorough analysis of the theory alongside practical applications tailored to different domains.
+This repository showcases projects that focus on the application of statistical analysis methods, including exploration of the statistical methodology and implementation of computationally expensive techniques. Each project provides a thorough analysis of the theory alongside practical applications tailored to different domains.
 
 - [Bayesian Hierarchical Meta-Analysis](#bayesian-hierarchical-meta-analysis)
 - [Statistical Network Analysis](#statistical-network-analysis)
@@ -28,7 +28,7 @@ A Bayesian hierarchical model was implemented for this purpose, which allows to 
 
 ><b>Structural and Resilience Analysis of the German Transmission Network</b>
 
-The analysis provides insights into the structure of the German **power transmission network**, and attempts to investigate potential **vulnerability** points that might lead to disruptions of the electricity flow in cases of targeted or random attacks on the network. The project was inspired by the [**SciGRID**](https://www.power.scigrid.de/) project, which was created for the purpose of developing automated generation of models of power grids for the purposes of research and practical applications. The **structure** of the network was analysed, with the main centralities investigated and the results compared. Clustering was performed using a **fast and greedy** approach. Finally, **resilience analysis** was performed by using various approaches, which evidenced that the most efficient **attack strategy** node removal is coherent with population density levels, indicating the importance of robust network planning.
+The analysis provides insights into the structure of the German **power transmission network**, and attempts to investigate potential **vulnerability** points that might lead to disruptions of the electricity flow in cases of targeted or random attacks on the network. The project was inspired by the [**SciGRID**](https://www.power.scigrid.de/) project, which was created for the purpose of developing automated generation of models of power grids for the purposes of research and practical applications. 
 
 <p align="center">
   <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/network_analysis/aux_files/targeted.png" alt="Germany population density overlaid by targeted nodes" width="300" height = "400"/>
@@ -36,17 +36,21 @@ The analysis provides insights into the structure of the German **power transmis
   <i>Germany population density overlaid by targeted nodes</i>
 </p>
 
+The **structure** of the network was analysed, with the main centralities investigated and the results compared. Clustering was performed using a **fast and greedy** approach. Finally, **resilience analysis** was performed by using various approaches, which evidenced that the most efficient **attack strategy** node removal is coherent with population density levels, indicating the importance of robust network planning.
+
 <sub><i>Project completed in collaboration with Poetto Patrick </i></sub>
 
 # Adaptive Rejection Metropolis Samping
 
-This is a **research** project investigating the Adaptive Rejection Metropolis Sampling approach, which is an advanced **Markov Chain Monte Carlo** technique that is used in Bayesian modelling where the posterior densities admit a **non-log-concave shape**. The project provides a full **theoretical description** of the simpler building blocks, such as rejection sampling, squeezing function and adative rejection sampling. Afterwards, the full algorithm for the ARMS is explained, with the practical implementation provided in order to demonstrate the gain in efficiency of the **sampling procedure**. 
-
+This is a **research** project investigating the **Adaptive Rejection Metropolis Sampling** approach, which is an advanced **Markov Chain Monte Carlo** technique that is used in Bayesian modelling where the posterior densities admit a **non-log-concave shape**. 
 <p align="center">
   <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/arms_computational/aux_files/envelope.png" alt="An example of the envelope for the ARMS sampling" width="500" height = "400"/>
   <br/>
   <i>An example of the envelope for the ARMS sampling</i>
 </p>
+
+The project provides a full **theoretical description** of the simpler building blocks, such as rejection sampling, squeezing function and adative rejection sampling. Afterwards, the full algorithm for the ARMS is explained, with the practical implementation provided in order to demonstrate the gain in efficiency of the **sampling procedure**. 
+
 
 <sub><i>Project completed in collaboration with Corrà Sara </i></sub>
 
