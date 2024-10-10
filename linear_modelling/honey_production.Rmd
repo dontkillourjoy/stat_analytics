@@ -1,16 +1,23 @@
 ---
-title: "Final assg"
+title: "final_assignment_compiling"
 author: "Goar Shaboian"
-date: "2023-05-30"
-output: html_document
+date: "2023-05-25"
+output:
+  bookdown::pdf_document2: default
+  officedown::rdocx_document: default
+fig.caption: yes
+always_allow_html: yes
+bibliography: references.bib
 ---
 
-```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library (ggplot2)
-library (dplyr)
+library (dplyr) # pipe, bind_rows
 library (tidyverse)
 library (kableExtra)
+library (bookdown)
+library (officedown)
 library (data.table) # loading data
 library (stringr) # recapitalising state names
 library (GGally) # ggpairs
@@ -23,10 +30,17 @@ library (leaps) # regubsets
 library (olsrr) # cp mallows
 library (patchwork) # combining plots
 library (car) # vifs
+library(jtools) # pretty lm table (+kableExtra)
+library (wesanderson) # for yellow
+library (faraway) # for half-normal plot
+library (flextable) # kable for doc
+library(effects) # effective plots
+library (fdrtool) # half-normal 
+library (boot) # cross-validation
+library (ggeffects) # predictor effects
 ```
 
-
-```{r data-cleaning, include = FALSE, warning=FALSE, message=FALSE}
+```{r data-cleaning, echo = FALSE, warning=FALSE, message=FALSE}
 
 ####################
 ###### DISEASE #####
@@ -55,95 +69,137 @@ disease.data$State <- str_to_title (disease.data$State)
 pm.data <- read.csv ("pm.csv")
 
 ####################
-# pesticides + co2 #
+######## co2 #######
 ####################
-pest.data <- read.csv ("honeyusa.csv", sep = ";", dec = ",")
-colnames (pest.data) <- c ("State", "prod", "cloth", "imid", "thiam", "ace", "co2")
+co2.data <- read.csv ("co2.csv", sep = ",", dec = ".")
+co2.data <- co2.data [- c (52, 53, 54, 55), ]
+colnames (co2.data) <- c ("State", "co2")
+
+####################
+#### pesticides ####
+####################
+pest.data <- read.csv ("neon.csv", sep = ",", dec = ".")
+pest.data <- pest.data  [, c (4, 8, 9, 12, 13, 14, 15)]
+pest.data <- pest.data [pest.data$year == 2016,]
+pest.data <- pest.data [, - 2]
+pest.data <- pest.data [, c (2, 1, 6, 4, 3, 5)]
+colnames (pest.data) <- c ("State", "prod", "ace", "imid", "cloth", "thiam")
 
 
 ####################
 #### unite data ####
 ####################
 temp <- merge (x = disease.data, y = pm.data, by = "State", all.x = TRUE)
-data <- merge (x = temp, y = pest.data, by = "State", all.x = TRUE)
+temp1 <- merge (x = temp, y = pest.data, by = "State", all.x = TRUE)
+data <- merge (x = temp1, y = co2.data)
 data <- data [complete.cases (data), ]
 rownames (data) <- data$State
 data <- data [, -1]
-names (data)
 data <- data [, c (3, 1, 8, 2, 4:7)]
-data_unscaled <- data
-data <- as.data.frame (scale (data))
+data_raw <- data
+# prod measured in pounds;
+# prod to different unit of measure: CHANGE !!!! ALSO IN TEXT AND IN TABLE VARS
+for ( i in c (5:8)){
+  data [, i] <- data [, i] / 1000
+}
+data$prod <- data$prod / 2204.62
+# tons / 1000
+data$prod <- data$prod / 1000
+data_remeasured <- data
+
+# data <- scale (data, scale = F)
+# data <- data.frame (data)
+n <- nrow (data)
 ```
-```{r trend, warning=FALSE, message=FALSE, out.height="70%", out.width="70%", fig.align='center', fig.cap="Number of beehives in the United states, 1989-2021", echo=FALSE}
+```{r colors, message=FALSE, warning=FALSE, echo=FALSE}
+mypal <- brewer.pal (11, 'RdBu')
+mypal [12] <- wes_palette(name = ("Cavalcanti1"), n = 5 ) [1]
+```
+
+```{r rm1, echo=FALSE, message=FALSE, warning=FALSE}
+rm (disease.data)
+rm (pm.data)
+rm (pest.data)
+rm (co2.data)
+rm (temp)
+rm (temp1)
+rm (temp2)
+```
+
+# Implications of decline of bee population for global ecosystems
+In the current declining ecological situation, it becomes exceedingly urgent to pay closer attention to various factors influencing the global ecosystems. The role the pollinators play in the ecosystem is vast: the great majority of crops and wildflowers depend on bees. Research shows that 35% of global agricultural land is affected by pollinators (@whybeesmatter). The crops that are dependent on pollinators are five times more valuable for human use. Among 115 crops that have the highest world-wide production rate, 75% of them demonstrate greater yields due to animal, mostly bee, pollination (@klein2007importance). Additionally, many species of wildlife would also be at risk if the pollinators were missing from the ecosystem.
+Unfortunately, as *Figure \@ref:(fig:trend)* allows to observe, a trend in the decline of the population of bees since the 1990s (@zattara2021worldwide) ^[Data retrieved from Food and Agriculture [Organization](https://www.fao.org/faostat/en/#data/QCL) of the United Nations] . This research aims at attempting to discern how various environmental factors may affect the well-being of the bee population.
+```{r trend, warning=FALSE, message=FALSE, out.height="90%", out.width="90%", fig.align='center', fig.cap="Number of beehives in the United states, 1989-2021", echo=FALSE}
 # data on bee popultation from : https://www.fao.org/faostat/en/#data/QCL
 # number of beehives
-# imidacloprid into in 1991: @jeschke2008neonicotinoids
 trend <- read.csv ("population.csv", sep = ";", header = T)
 colnames (trend) <- c ("Year", "Value")
 trend <- trend [trend$Year >=1989, ]
-mypal <- brewer.pal(11, 'RdBu')
-show_col (mypal)
+trend <- trend [trend$Year <= 2017, ]
 
 plot_trend <- ggplot(trend, aes(x = Year, y = Value)) +
     geom_ribbon(aes(ymin = 2300000, ymax = Value), fill = mypal [2], alpha = 0.3) +
     geom_line(color = mypal [2], size = 1) +
     geom_vline (xintercept = 1991, lty = 2, col = mypal [1], lwd = 1.1) +
     annotate ("text", label = "Market introduction \n of imidacloprid", fontface = "bold", x = 1996, y= 3300000, col = mypal [1]) +
-    labs(title = "Bee Population Trend",
+    labs(title = "Trend for bee population",
          x = "Year",
-         y = "Bee Population") +
-    theme_minimal()
+         y = "Number of beehives") +
+    theme_minimal() +
+    theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
 plot_trend
 ```
-```{r}
-urls <- c("https://quickstats.nass.usda.gov/", "https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide", "https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide", "https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide", "https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide", "https://quickstats.nass.usda.gov/","https://ephtracking.cdc.gov/qr/296/2/ALL/ALL/1/2016/0?apiToken=637DD2EF-507F-4938-8380-54A179C3132A", "https://www.eia.gov/environment/" )
-for (i in 1:length(urls)) {
- tabs$Source <- gsub(source[i], sprintf('<a href="%s">%s</a>', urls[i], source[i]), tabs$Source)
-}
+## Factors influencing bee population
+This research focuses on thirty four continental United States of America states for the year 2016. For this analysis, total honey production (kilotonnes) is regarded as an indicator for the current state of honey bee population and their ability to pollinate. To conduct meaningful analysis, literature review has been conducted to determine factors that may influence the honey bee population. 
 
-# kable(tabs, escape = FALSE, format = "html")
+```{r vars, message=FALSE, warning=FALSE, echo=FALSE}
+vars <- c ("Total honey production", "Clothianidin usage", "Imidacloprid usage", "Thiamethoxam usage", "Acetamiprid usage", "Colonies affected by disease", " PM2.5 annual average concentration", "Energy-related carbon dioxide emissions")
+shorts <- c ("prod", "cloth", "imid", "thiam", "ace", "disease", "pm", "co2")
+measure <- c ("kilotonnes", "tonnes", "tonnes", "tonnes", "tonnes", "% of colonies",  "mcg/m3", "MT")
+source <- c ("United States Department of Agriculture", "Kaggle", "Kaggle", "Kaggle", "Kaggle", "United States Department of Agriculture", "Centre for Disease Control and Prevention", "Energy Information Administration of the United States of America")
+tabs <- data.frame (Variable = vars, Name  = shorts, Units = measure, Source = source)
+
+tab_vars <- flextable (tabs) %>%
+  set_caption ("Variable descriptions") %>%
+  align (align = "center") %>%
+  theme_booktabs () %>%
+  bold (part = "header") %>%
+  bg (i = c (1, 3, 5, 7), bg = "#F5E2C8")
+tab_vars
 ```
+The included variables are demonstrated in *Table \@ref(tab:vars)*^[Total honey production was rescaled from pounds to kilotonnes; pesticide variables were rescaled from kilogrammes to tonnes]
+Data sources for variables [prod and disease](https://quickstats.nass.usda.gov/), [pesticides](https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide), [pm 2.5](https://ephtracking.cdc.gov/qr/296/2/ALL/ALL/1/2016/0?apiToken=637DD2EF-507F-4938-8380-54A179C3132A), [co2](https://www.eia.gov/environment/emissions/state/)].
 
-```{r}
-#### old#######
+From *\@ref(fig:trend)* it can be observed that a rapid decline in bee population coincides with the introduction of a neonicotinoid pesticide imidaploprid to the market in the United States (@jeschke2008neonicotinoids). Additionally, Studies show that neonicotinoids usage has acute lethal toxicity for bees when there is contact exposure, as well as devastating effects on bee reproduction (@blacquiere2012neonicotinoids). Hence, predictors for usage of four neonicotinoid pesticides were introduced to the model. For each pesticide, the scope of usage varies: acetamiprid is usually used for broadleaf plants and lawns, thiamethoxam for corn, bean, cotton, turf and other plants, imidacloprid is often used for landscapes, pet pests and gardening, and clotianidin has a wide agricultural scope for usage. 
 
-hyperlinked_sentence1 <- sprintf('<a href="%s">%s</a>', "https://quickstats.nass.usda.gov/", "Agriculture")
-hyperlinked_sentence2 <- sprintf('<a href="%s">%s</a>', "https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide", "Kaggle")
-source [1] <- hyperlinked_sentence1
-source [2] <- hyperlinked_sentence2
+Pollination is severely affected by air pollution since it is the reason that bees sometimes fail to recognize and locate the flora that they aim to pollinate (@capitani2021disentangling). Additionally, deposition of respirable particular matter $PM_{2.5}$ and $PM_{5.0}$ has been found on bees’ waxy layers in areas with higher air pollution rates (@thimmegowda2020field). Thus, two variables representing air pollution were added: concentration of Particular Matter 2.5 particles, micrograms per cubis meter, and Carbon Dioxide emissions values, metric tons.
 
+Variable representing disease affecting the colonies was added to attempt to account for effects not represented by other variables included in the analysis. 
 
-kable(tabs, align = "l", caption = "Variable description") %>% 
-  kable_styling (full_width = FALSE) %>% 
-  column_spec (1, width = "5em") %>% 
-  column_spec (2, width = "35em") %>% 
-  column_spec (3, width = "5em") %>%
-  row_spec (0, bold = TRUE) %>%
-  row_spec (c (1, 3), background = "#F5E2C8")
-```
+## Preliminary data analysis
 
+To obtain a general idea on how the covariates are related with each other, as well as with the response, preliminary analysis of the variables is necessary, namely data visualisation.
 
-
-```{r ggpairs-work, echo=FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.cap="Pair plots for covariates", out.height="70%", out.width="70%"}
-lowerFn <- function(data, mapping, method = "lm", ...) {
+```{r pairs, echo=FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.cap="Pair plots for covariates", out.height="90%", out.width="90%"}
+custom_density <- function(data, mapping, method = "lm", ...) {
   p <- ggplot(data = data, mapping = mapping) +
     geom_point(colour = "brown4", alpha = .75, size = .85) +
     geom_smooth(method = method, color = "black", fill = "brown4", alpha = .2, lwd = .6,  ...)
   p
 }
 
-
-plot_ggpairs <- ggpairs (data = data, columns = 1:4, lower = list(continuous = wrap(lowerFn, method = "lm")), upper = list (continuous = wrap ("cor", color = mypal [1])), diag = list (continuous = wrap("densityDiag", fill = mypal [1], alpha = .3))) + 
+plot_ggpairs <- ggpairs (data = data, columns = 1:4, lower = list(continuous = wrap(custom_density, method = "lm")), upper = list (continuous = wrap ("cor", color = mypal [1])), diag = list (continuous = wrap("densityDiag", fill = mypal [1], alpha = .3))) + 
     labs(title = "Pairwise Plots") +
     theme_bw () +
-    theme(plot.title = element_text (hjust = 0.5))
-#ggsave ("plot_ggpairs.png", plot = ggpairs_plot)
-#saveRDS(ggpairs_plot, file = "try.RDS")
+    theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+
 plot_ggpairs
 ```
+*Figure \@ref(fig:pairs)* demonstrates that the values for the response variable are concentrated in the left-hand side of the support, with a few extreme values. Values for PM 2.5 concentration are slightly left-skewed, but to a lesser degree than the other variables. Additionally, a negative linear relationship is observed also between PM 2.5 and the response, whereas the relationship between Carbon dioxide emissions and the response appears to be positive.  
 
-```{r violins, echo=FALSE, message=FALSE, warning=FALSE}
-melted <- reshape2::melt(data [, 5:8])
+To investigate the variables for pesticide usage, violin plots were used to monitor the distribution of the data. For better interpretability of the visual representation, the data used for this plot was scaled.
+```{r violins, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center', fig.cap="Distribution of pesticide variables", out.height="90%", out.width="90%"}
+melted <- reshape2::melt(data [, c (6, 8, 5, 7)])
 plot_violins <- ggplot (melted, fill = stat(x)) + 
   geom_density_ridges_gradient (aes(x = value, y = factor(variable), group=variable, fill=factor(variable)),scale = 2, size = 0.3, rel_min_height = 0.01, bandwidth=0.1) +
   scale_fill_manual (values =mypal [1:4]) + 
@@ -156,80 +212,88 @@ plot_violins <- ggplot (melted, fill = stat(x)) +
         legend.justification = "right",
         legend.margin = margin(6, 6, 6, 6), 
         axis.text.y = element_blank(),
-        plot.title = element_text(hjust = 0.5))
+        plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
 plot_violins
 ```
+From *Figure \@ref(fig:violins)*, it is evident that the distributions are right-skewed. However, for pesticides imidacloprid and acetamiprid, the disribution is less skewed, and a higher number of high levels of pesticide usage are observed. 
+ 
+?????It can be noted that the values for total honey production, carbon dioxide emissions and pesticide usage span over several orders on magnitude. It is common practice to apply the logarithm transformation to such variables, however, for the purposes of this analysis, the decision on data transformation will be postponed, to take into account the results of diagnostics analysis.  
+```{r rm2, message=FALSE, warning=FALSE, echo=FALSE}
+rm (trend)
+rm (melted)
+rm (tabs)
+rm (tab_vars)
+```
+# Constructing an optimal linear regression model
+For investigating how honey production is connected with environmental variables, a linear regression model is assumed, since it provides methodology to study the relationship between the response variables and the covariates. Additionally, it allows to make predictions on newly observed values for the predictors.  
 
-
-
-```{r lm-fit, warning=FALSE, message=FALSE}
-summary (data$co2)
-data$cat_co2 <- as.factor (ifelse(data$co2 > 0, "High", "Low"))
-summary (data$pm)
-data$cat_pm <- as.factor (ifelse(data$pm > 0, "High", "Low"))
-full_data <- data
+To conduct regression analysis, the decision has been made to use the air pollution variables as categorical variables: this will allow to distinguish the effect on the response for states with low and high levels of air pollution indicated by each of them separately. Each variable has been split into two categories, "High" and "Low", according to the mean of their distributions. 
+\small
+```{r cat-show, warning=FALSE, message=FALSE}
+data$cat_co2 <- factor (ifelse(data$co2 > mean (data$co2), "High", "Low"))
+data$cat_pm <- factor (ifelse(data$pm > mean (data$pm), "High", "Low"))
+```
+\normalsize
+```{r cat-details, warning=FALSE, message=FALSE, echo=FALSE}
+data_full <- data
 data <- data [, - c (3, 4)]
-
-## for unscaled data ##
-summary (data_unscaled$co2)
-data_unscaled$cat_co2 <- as.factor (ifelse(data_unscaled$co2 > 118.6, "High", "Low"))
-summary (data_unscaled$pm)
-data_unscaled$cat_pm <- as.factor (ifelse(data_unscaled$pm > 7.4, "High", "Low"))
-full_data_unscaled <- data_unscaled
-data_unscaled <- data_unscaled [, - c (3, 4)]
-########################
-
-colors <- ifelse(data$cat_pm == "High", "red", "blue")
-plot (data$disease, data$prod, col = colors)
-high_group <- data[data$cat_pm == "High", ]
-low_group <- data[data$cat_pm == "Low", ]
-
-high_lm <- lm(prod ~ disease, data = high_group)
-low_lm <- lm(prod ~ disease, data = low_group)
-
-{plot (data$disease, data$prod, col = colors)
-  abline(high_lm, col = "red", lwd = 2)   
-  abline(low_lm, col = "blue", lwd = 2)}
-# not sure if should plot this ^
-
-```
-```{r lm-fit, warning=FALSE, message=FALSE}
-fit <- lm (prod ~ disease + cat_co2 + cat_pm + cloth + imid + thiam + ace + disease*cat_pm, data = data)
-summary (fit) # not a good fit
-
 ```
 
-```{r bss-new, warning=FALSE, message=FALSE, echo=FALSE}
-bss <- regsubsets (prod ~ disease + cat_co2 + cat_pm + cloth + imid + thiam + ace + disease*cat_pm, data = data)
+```{r boxplots, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center', fig.cap="Boxplots for levels of air pollution variables", out.height="90%", out.width="90%"}
+data_boxplot <- data [, c (1, 7, 8)]
+colnames (data_boxplot) <- c ("prod", "Carbon_dioxide", "pm2.5")
+one <- which.max (data_boxplot$prod)
+data_boxplot <- data_boxplot [-20,]
+two <- which.max (data_boxplot$prod)
+data_boxplot <- data_boxplot [-24,]
+
+plot_boxplots <-  data_boxplot %>%
+    gather(variable, value, -prod) %>%
+    ggplot(aes(factor(value), prod, fill = factor(value))) +
+    geom_boxplot() +
+    facet_wrap(~variable, scales = "free_x", nrow = 1, strip.position = "bottom") +
+    scale_fill_manual(values = mypal[c(2, 4)]) + 
+    theme_bw() +
+    theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5), 
+          panel.spacing = unit(0, "lines"),
+          panel.border = element_rect(fill = NA),
+          strip.background = element_blank(),
+          axis.title.x = element_blank(),
+          legend.position = "none",
+          strip.placement = "outside")
+plot_boxplots
+```
+Figure \@ref(fig:boxplots)* demonstrates that, while for the variable for carbon dioxide emission the differences in total honey production for different levels of the factors are not significant and are counter-intuitive, for pm 2.5 a significant difference can be observed: values of total honey production are noticeably higher for states where the concentration on particles in the air is lower. 
+Additionally, in *Figure \@ref:(fig:pairs)*^[Two of the most extreme values for total honey production were removed for this plot, for better visual representation] a relationship has been detected between the variable for disease in colonies and PM 2.5 concentrations, an interaction between them was included in the model to investigate the joint effects of the covariates onto the response variable (@weisberg2005applied, p. 54). Hence, the interaction will demonstrate if there are any joint effects between the levels of the PM 2.5 concentration in a certain state and how it can interact with the proportion of the diseased colonies and influence jointly the response. 
+
+To avoid adding redundant regressors to the regression model, which may add noise and introduce problem of collinearity, variable selection is performed (@faraway2016extending). Best subset selection, a common approach, iterates over all possible models that can be fit for each possible number of regressors, and chooses the optimal model for each p according to the lowest RSS value or highest $R^2$. Afterwards, among them the optimal model is chosen using information criteria, Mallows’ $C_p$ or $R^2_{adj}$. In this framework, the computation burden is not high due to a small number of regressors. 
+
+Function *regsubsets ()* from *leaps* function was implemented. It should be underlined that the interaction term was included in the model at step 7, before the variable for disease was added. Hence, the step 7 model was eliminated from the model since it violated the hierarchical principe (@james-2013, p. 89). The output for the best subset selection is shown below.
+\small
+```{r bss-show, warning=FALSE, message=FALSE}
+bss <- regsubsets (prod ~ . + disease*cat_pm, data = data)
 bss_sum <- summary (bss)
-# note that step 5, interaction starts to be included without the main effect
-bss_formulas <- bss_sum$which
-plot(bss_sum$bic, type = "b",col = 1, pch = 16, xlab = "number of predctors", ylab = "drop in BIC")
-bss_sum$bic
 
-mod1 <- lm (prod ~ cat_pm, data = data)
-mod2 <- lm (prod ~ cat_pm + thiam, data = data)
-mod3 <-  lm (prod ~ cat_pm + thiam + ace, data = data)
-mod4 <- lm (prod ~ cat_pm + thiam + ace + cloth, data = data)
-mod5 <- lm (prod ~ cat_pm + thiam + ace + cloth + disease + disease*cat_pm, data = data)
-mod6.1 <- lm (prod ~ cat_pm + thiam + ace + cloth + disease + disease*cat_pm + imid, data = data)
-mod6.2 <- lm (prod ~ cat_pm + thiam + ace + cloth + disease + disease*cat_pm + cat_co2, data = data)
-summary(mod6.1)$r.squared; summary (mod6.2)$r.squared # 0.282 vs 0.281
-summary(mod6.1)$sigma; summary (mod6.2)$sigma # 0.9544 vs 0.955
-# choose mod6.1
-mod6 <- mod6.1
-mod7 <-  lm (prod ~ cat_pm + thiam + ace + cloth + disease + disease*cat_pm + imid + cat_co2, data = data)
-models <- list (mod1, mod2, mod3, mod4, mod5, mod6, mod7)
-
+calls <- as.matrix(bss_sum$which [-7, ])
+colnames (calls) [c (7, 8, 9)] <- c ("cat_co2", "cat_pm", "disease * cat_pm")
+models <- list (); formulas <- list ()
+for (i in 1:7){
+  formula <- as.formula (paste ("prod ~ ", paste (names (calls [i,-1]) [calls [i,-1] == TRUE], collapse = "+")))
+  formulas [[i]] <- formula
+  models [[i]] <- lm (formula, data = data)
+}
+```
+\normalsize
+```{r bss-plots, warning=FALSE, message=FALSE, fig.align='center', fig.cap="Comparison of models with different number of predictors", out.height="90%", out.width="90%"}
 bic <- numeric (7)
 aic <- numeric (7) 
 r_adj <- numeric (7)
 cp_mallows <- numeric (7)
 for (i in 1:7){
   model_out <- models [[i]]
-  aic [i] <- AIC (model_out)
+  aic [i] <- AIC (model_out, k = 2)
   bic [i] <- BIC (model_out)
-  cp_mallows [i] <- ols_mallows_cp (model_out, mod7)
+  cp_mallows [i] <- ols_mallows_cp (model_out, models [[7]])
   sum_out <- summary (model_out)
   r_adj [i] <- sum_out$adj.r.squared
 }
@@ -244,341 +308,408 @@ drop_in_AIC <- sapply (aic, function (t) t - bic.null)
 # bic [3] - bic [2]
 # bss_sum$bic [3] - bss_sum$bic [2] those quantities are what is equal
 
-
-your_data_frame <- data.frame(
-  number_of_predictors = c(1, 2, 3, 4, 6, 7, 8), 
+bss_criteria <- data.frame(
+  number_of_predictors = c(1, 2, 3, 4, 5, 6, 8), 
   drop_in_AIC, 
   drop_in_BIC,
   cp_mallows,
   r_adj)
 
 # Plot 1: AIC
-plot_aic <- ggplot(data = your_data_frame, aes(x = number_of_predictors, y = drop_in_AIC)) +
+plot_aic <- ggplot(data = bss_criteria, aes(x = number_of_predictors, y = drop_in_AIC)) +
   geom_line() +
   geom_point(shape = 16) +
   labs(x = "number of predictors", y = "drop in AIC") +
   geom_vline(xintercept = which.min(drop_in_AIC), linetype = "dashed", col = mypal [2]) +
-  theme(plot.margin = margin(0, 0, 0, 5)) +
-  theme_minimal()
+  theme_bw () + 
+  theme(plot.margin = margin(0, 0, 0, 5),
+        axis.text = element_text (size = 6))
+  
 
 # Plot 2: BIC
-plot_bic <- ggplot(data = your_data_frame, aes(x = number_of_predictors, y = drop_in_BIC)) +
+plot_bic <- ggplot(data = bss_criteria, aes(x = number_of_predictors, y = drop_in_BIC)) +
   geom_line() +
   geom_point(shape = 16) +
   labs(x = "number of predictors", y = "drop in BIC") +
   geom_vline(xintercept = which.min(drop_in_BIC), linetype = "dashed", col = mypal [2]) +
-  theme(plot.margin = margin(0, 5, 0, 0)) +
-  theme_minimal ()
+  theme_bw () + 
+  theme(plot.margin = margin(0, 0, 0, 5),
+        axis.text = element_text (size = 6))
 
 # Plot 3: Cp Mallows
-plot_cp_mallows <- ggplot(data = your_data_frame, aes(x = number_of_predictors, y = cp_mallows)) +
+plot_cp_mallows <- ggplot(data = bss_criteria, aes(x = number_of_predictors, y = cp_mallows)) +
   geom_line() +
   geom_point(shape = 16) +
   labs(x = "number of predictors", y = expression(Mallows ~ C[p])) +
   geom_vline(xintercept = which.min(cp_mallows), linetype = "dashed", col = mypal [2]) +
-  theme(plot.margin = margin(5, 0, 0, 5)) + 
-  theme_minimal ()
+  theme_bw () + 
+  theme(plot.margin = margin(0, 0, 0, 5),
+        axis.text = element_text (size = 6))
 
 # Plot 4: r.adj
-plot_r_adj <- ggplot(data = your_data_frame, aes(x = number_of_predictors, y = r_adj)) +
+plot_r_adj <- ggplot(data = bss_criteria, aes(x = number_of_predictors, y = r_adj)) +
   geom_line() +
   geom_point(shape = 16) +
   labs(x = "number of predictors", y = expression(R[adj]^2)) +
   geom_vline(xintercept = which.max(r_adj), linetype = "dashed", col = mypal [2]) +
-  theme(plot.margin = margin(5, 5, 0, 0)) + 
-  theme_minimal ()
+  theme_bw () + 
+  theme(plot.margin = margin(0, 0, 0, 5),
+        axis.text = element_text (size = 6))
 
 
 combined_plot <- plot_aic + plot_bic + plot_cp_mallows + plot_r_adj +
-  plot_annotation(title = "Model selection, best sample selection approach", theme = theme(plot.title = element_text(hjust = 0.5)))
+  plot_annotation(title = "Model selection, best sample selection approach", theme = theme(plot.title = element_text(face = "bold", hjust = 0.5)))
 combined_plot
-# choose model with 4 predictors
+```
+*Figure \@ref(fig:bss)* shows there is no consensus for the criteria used for selecting the optimal model: according to Bayesian Information criterion and Mallows’ $C_p$, the optimal model should include one parameter, the categorical *PM 2.5 concentrations*. This is due to the fact that BIC is a more conservative criterion, since it penalizes the model more for higher number of parameters included (@faraway2016extending). 
+
+Akaike criterion indicates, that the most optimal model in terms of the number of predictors used for explaining the dependent variable, is the model with intercept and two regressors: two categorical variables for air pollution, *PM 2.5 and CO2 emissions *.  The adjusted coefficient of determination, however, indicates that the model with including three covariates is the optimal strategy: *PM 2.5, CO2 emissions and imidacloprid*.
+
+To provide an additional measure for model comparison, cross-validation was implemented. Since the number of observations is low (34), it is possible to implement the most exhaustive algorithm, Leave-One-Out Cross-Validation. This implies, training each model 34 times by omitting one observation each time, then predicting the value of that particular observation using the trained model, and calculating the Mean Square Error at each iteration, the average of which provides the estimate for cross-validation error:
+$$ CV_{(n)} = \frac{1}{n} \sum_{i=1}^{n} MSE_i, \\  where \ \ MSE_i = (y_i - \hat{y_i})^2 $$
+This approach does not incorporate randomness in the procedure, and guarantees that there is no bias: it does not overestimate the test error (@@james-2013). 
+\small
+```{r loocv-show,  warning=FALSE, message=FALSE}
+CV <- NULL
+for (i in 1:7){
+  glm.fit <- glm(formulas [[i]], data = data)
+  CV[i] <- cv.glm (data, glm.fit)$delta [1]
+}
+```
+\normalsize
+```{r loocv-plot, echo = FALSE, warning=FALSE, message=FALSE, echo=FALSE, fig.align='center', fig.cap="Leave-One-Out Cross-Validation results", out.height="90%", out.width="90%"}
+mse_df <- data.frame (Predictors = 1:7, MSE = CV)
+plot_mse <- ggplot (data = mse_df, aes(x = Predictors, y = MSE)) +
+  geom_line () +
+  geom_point (shape = 16, size = 3) +
+  labs (x = "number of predictors", y = "LOOCV MSE", title = "Mean Square Error, Leave-One-Out Cross Validation") +
+  geom_vline (xintercept = which.min(CV), linetype = "dashed", col = mypal [2]) +
+  geom_vline (xintercept = 3, linetype = "dashed", col = mypal [2]) +
+  geom_segment (aes (x = 1, xend = 3, y = CV [3], yend = CV [3]), col = mypal [10]) +
+  geom_segment (aes (x = 1, xend = 1, y = CV [1], yend = CV [3] + .003), col = mypal [10], 
+                arrow = arrow(length = unit(0.02, "npc"), type = "open")) +
+  theme_bw () +
+  theme (plot.margin = margin(5, 5, 0, 0),
+         plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+plot_mse
+```
+LOOCV results demonstrate that model with 1 predictor has the lowest Meas Square Error value, however, it can be observed that the difference for the value for the model with 3 variables is relatively small. For the purpose 
+<---> WHAT PURPOSE? <--->, 
+the model with 4 variables *(PM 2.5 concentrations, Carbon Dioxide emissions and imidacloprid pesticide)* was chosen.  
+```{r choosing-data, echo = FALSE, warning=FALSE, message=FALSE}
+data_model <- cbind (data [, c (1, 4, 7, 8)])
+data_model_full <- data_full [, c (1, 3, 4, 6, 9, 10)]
+fit <- models [[3]]
 ```
 
-```{r loocv-dream, warning=FALSE, message=FALSE}
-l <- length (models); n <- nrow (data)
-loocv_attempt <- function (models, data){
-  cv_loocv <- matrix (NA, n, l)
-  # for loop to iterate over the models:
-  for (i in 1:l){
-    # for loop to train the data LOO:
-    for (j in 1:n){
-    mod_loocv <- lm (models [[i]]$call$formula, data = data [-j, ]) 
-    # each model has dif number of preds. must fit each model on test data and store result in l-th col and
-      # n-th row of it
-    predicted <- predict(mod_loocv, newdata = data[j, ])
-    squared_error <- (data$prod[j] - predicted)^2
-    cv_loocv [j, i] <- squared_error
-    }
-  }
-  return (cv_loocv)
-}
+# Multicollinearity issues
+Multicollinearity is a problem that arises when the predictors have high levels of correlation between each other: in such case, the predictors explain similar share of the variance of the response, inflating the variance of the coefficients, causing higher levels of uncertainty and lowering the precision of the regression coefficients. To make preliminary conclusions on the presense of collinearity, the table of Pearson correlations is analysed. 
 
-```
-
-
-```{r loocv-new, warning=FALSE, message=FALSE}
-# for LOOCV, need to sequentially fit models on (n-1 rows)
-library(caret)
-n <- nrow (data)
-# Define the LOOCV function to calculate MSE
-loocv_mse <- function(model, data) {
-  # Initialize an empty vector to store MSE values
-  mse <- numeric(n)
-  
-  # Perform LOOCV
-  for (i in 1:n) {
-    # Create a training set by removing the i-th observation
-    train_data <- data[-i, ]
-    
-    # Fit the model to the training set
-    fit_out <- lm (model, data = train_data)
-    
-    # Make predictions on the left-out observation
-    pred <- predict (fit_out, newdata = data[i, ])
-    
-    # Calculate the squared error
-    mse[i] <- (data[i, "prod"] - pred)^2
-  }
-  
-  # Return the mean squared error
-  return(mean(mse))
-}
-
-# Create a vector to store MSE values for each model
-mse_values <- numeric(length = length(models))
-
-# Perform LOOCV for each model
-for (i in 1:length(models)) {
-  mse_values[i] <- loocv_mse(models[[i]], data)
-}
-
-# Output the MSE values for each model
-mse_values
-
-```
-```{r loocv-new-new}
-p <- 5
-n <- nrow (data)
-set.seed (17)
-folds <- sample (1:k, n, replace = TRUE)
-cv.errors <- matrix(NA, k, p, dimnames = list (NULL, paste (1:p)))
-
-for (i in 1:n){
-  opt_mod <- models [[]]
-}
-
-
-for (j in 1:n){
-  # fit the models on training data
-  opt_mod <- regsubsets (prod ~., data = data [-i,])
-  # for each number of p, calculate the cv error, fitting the model on test data
-  for (i in c (1, 2, 3, 4,6,7,8)){
-    matr <- model.matrix(as.formula(opt_mod$call[[2]]), data = data[i,])
-    coefs <- coef(opt_mod, id = i) # extracting coefs for each optimal model for p = i
-    covars <- names (coefs) # extract which vars are used to fit each optimal model at p = i
-    # mse = avg y_i - y_fit
-    fit <- matr [, covars] %*% coefs
-    cv.errors[j, i] <- mean ((data$prod[folds == j] - fit)^2)
-  }
-}
-
-```
-
-
-
-
-```{r chatgpt-LOOCV}
-n <- nrow(data)
-p <- ncol (mat)
-cv.errors <- matrix(NA, n, p, dimnames = list(NULL, paste(1:p)))
-
-data_trim <- data [ , - c(3, 4)]
-for (j in 1:n) {
-  # Fit the model on training data
-  opt_mod <- regsubsets(prod ~ disease + cat_co2 + cat_pm + cloth + imid + thiam + ace + disease*cat_pm, data = data,trim [-j, ])
-  
-  # For each number of p, calculate the cv error, fitting the model on test data
-  for (i in 1:p) {
-    formula <- as.formula (paste ("prod ~ ", paste(names(mat[i,-1])[mat[i,-1] == TRUE], collapse = "+")))
-  model <- lm (formula, data = data)
-    matr <- model.matrix(as.formula(opt_mod$call[[2]]), data = data.trim[j, ])
-    coefs <- coef(opt_mod, id = i)  # Extract coefs for each optimal model for p = i
-    covars <- names(coefs)  # Extract which vars are used to fit each optimal model at p = i
-    
-    # mse = avg y_i - y_fit
-    fit <- matr[, covars] %*% coefs
-    cv.errors[j, i] <- (data$prod[j] - fit)^2
-  }
-}
-
-cv.mean <- apply(cv.errors, 2, mean)
-plot(cv.mean, type = "b", xlab = "Number of predictors", ylab = "CV error")
-abline(v = which.min(cv.mean), col = "blue", lty = 2)
-```
-
-
-```{r prof-loocv}
-k <- 5
-p <- 5
-n <- nrow (data)
-set.seed (17)
-folds <- sample (1:k, n, replace = TRUE)
-cv.errors <- matrix(NA, k, p, dimnames = list (NULL, paste (1:p)))
-
-for (j in 1:k){
-  # fit the models on training data
-  opt_mod <- regsubsets (prod ~., data = data [folds != j,])
-  # for each number of p, calculate the cv error, fitting the model on test data
-  for (i in 1:p){
-    matr <- model.matrix(as.formula(opt_mod$call[[2]]), data = data[folds == j,])
-    coefs <- coef(opt_mod, id = i) # extracting coefs for each optimal model for p = i
-    covars <- names (coefs) # extract which vars are used to fit each optimal model at p = i
-    # mse = avg y_i - y_fit
-    fit <- matr [, covars] %*% coefs
-    cv.errors[j, i] <- mean ((data$prod[folds == j] - fit)^2)
-  }
-}
-
-cv.mean <- apply (cv.errors, 2, mean)
-{plot(cv.mean, type = "b", xlab = "Number of predictors", ylab = "CV error")
-  abline(v = which.min(cv.mean), col = mycol[3], lty = 2)}
-```
-
-
-```{r collin, message=FALSE, warning=FALSE}
-# chose model:
-# lm (prod ~ cat_pm + thiam + ace + cloth, data = data)
-data_choice <- cbind (data [, c (1, 3, 5, 6, 8)], "pm" = full_data [, 4])
-
-# correlation run on the original values for categorical variable ????????
-corr_matrix <- cor(data_choice [, c (2:4, 6)])
+$$ \rho = \frac{cov \ (X, Y)}{ sd \ (X) \  sd \ (Y)} $$
+Although the variables chosen for the model are categorical, it is possible, to make preliminary conclusions and for thoroughness of the analysis, to investigate the Pearson's correlation *(function cor ())*values between the original variables to determine if there are any linear relationship between them.
+```{r cor, message=FALSE, echo = FALSE, warning=FALSE, out.height="90%", out.width="90%", fig.align='center', fig.cap="Heatmap for correlation matrix"}
+corr_matrix <- cor(data_model_full [, 2:4])
 melted_corr <- reshape2::melt(corr_matrix)
 
-# Plot the heatmap
-corplot <- ggplot(melted_corr, aes(Var2, Var1, fill = abs (value))) +
-    geom_tile(color = "white", lwd = 0.1, linetype = 1) +
-    geom_text(aes(label = round(value, 2)), color = "darkred", size = 3.5) +
-    scale_fill_gradient(low = mypal[5], high = mypal [3]) +
-    labs(x = "", y = "", fill = "Correlation") +
-    ggtitle("Correlation plot") +
-    theme(plot.title = element_text(size = 20, face = "bold", hjust = 0.5))
-corplot
+plot_cor <- ggplot (melted_corr, aes (Var2, Var1, fill = abs (value))) +
+    geom_tile (color = "white", lwd = 0.1, linetype = 1) +
+    geom_text (aes (label = round (value, 2)), color = "darkred", size = 3.5) +
+    scale_fill_gradient (low = mypal[5], high = mypal [3]) +
+    labs (x = "", y = "", fill = "Correlation") +
+    ggtitle ("Correlation map") +
+    theme_bw () +
+    theme (plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+plot_cor
+```
+Form *Figure \@ref(fig:cor)*, it can be observed that the highest value for correlation between covariates is -0.44, indicating moderate correlation, which generally does not cause serious collinearity problems. Additional and more precise measures of correlation are Variance Inflation Factors: they take into consideration not only the relationship between two variables, but also take into account the relationships between all covariates. The function *vif ()* from the *car * package provides an algorithm that is effective in calculating the variance inflation factors for models with categorical variables, and is not sensitive to coding of the categorical variables.  
+
+```{r vifs, message=FALSE, warning=FALSE, echo=FALSE}
+vifs <- data.frame (t (vif (fit)))
+vifs <- round (vifs, digits = 3)
+rownames (vifs) <- "VIF value"
+colnames (vifs) <- c ("imid", "co2", "pm")
+tab_vifs <- flextable(vifs) %>%
+  set_caption("Variance Inflation Factors") %>%
+  align(align = "center") %>%
+  theme_booktabs() %>%
+  bold(part = "header") %>%
+  bg(i = 1, bg = "#F5E2C8")
+tab_vifs
+```
+*Table \@ref(tab:vifs)* confirms there are no multicollinearity issues to tackle in this framework. However, if it would have been detected, the following remedies may have been applied:
+* Removing one of the variables that inflates the variance from the regression analysis. Much information would not have been lost since the variable correlated with it explains more or less the same amount of the response variability.
+* Combining the variables and including the new variable into the model specification. This method is more preferable because in this way, no information is lost. The decision would have to have been made on the nature of the combination of the two variables, as well as on ways to account for differences of measurement scales.
+```{r rm3, message=FALSE, warning=FALSE, echo=FALSE}
+rm (data_boxplot)
+rm (melted_corr)
 ```
 
-Since the categorical variable was created using the initial continuous values for it, to check for multicollinearity issues, it is possible to include the initial values in the calculation of Pearson's correlation. The decision was made to apply this strategy since at this stage, no regression modelling is involved: only the nature of the relationship between covariates is investigated.
-
-```{r vifs, message=FALSE, warning=FALSE}
-vif (mod4)
+# Model diagnostics
+Making inference on estimates obtained by fitting the linear regression model using the ordinary least squares method relies on complying with several important assumptions on the error terms, the character of the relationship between the response and the covariates, as well as on the presence of unusual observations in the data that may change the overall fitting of the model. To ensure whether the ordinary least squares estimates are reliable to make inference, it is important to perform model diagnostics.  Residual-based diagnostics allow to make conclusions on the assumptions regarding the errors, since the two quantities are connected through the hat matrix: 
+$$ e_i = (I - H) \epsilon_i $$
+For testing for error correlation, methodology suggested by @fox-2015, namely using the Durbin-Watson test, was implemented. *Table X* provides description of the diagnostics performed.
+```{r dumb, echo=FALSE, message=FALSE, warning=FALSE}
+a <- data.frame (t (seq (1, 2, 1)))
+flextable (a)
 ```
-Values for Variance Inflation Factor are quite small, and they do not exceed the rule-of thumb threshold. 
 
-However, if multicollinearity problem was observed, one of two methods for dealing with it would have been implemented: 
+<----> TABLE <---->
+First step implemented was investigating the fitted-residual plot, for it allows to make conclusions simultaneously on two assumptions: non-constant variance of errors and linearity of the model.
+```{r ncv, warning=FALSE, message=FALSE, echo = FALSE, fig.align='center', fig.cap="Fitted and residual values for the optimal model", out.height="90%", out.width="90%", fig.show='hold'}
+df_diag <- data.frame (fitted = fit$fitted.values, residuals = fit$residuals)
+plot_fit <- ggplot(data = df_diag, aes(x = fitted, y = residuals)) +
+    geom_point(shape = 16, col = mypal [2], size = 2.8) +
+    geom_hline (yintercept =  0, lty = 2, lwd = 1.2) +
+    labs(x = "Fitted", y = "Residuals", title = "Fitted - Residuals plot") +
+    theme_bw () + 
+    theme (plot.title = element_text(size = 14, face = "bold", hjust = 0.5)) + 
+    coord_cartesian(ylim = c (-5.6, 12.7))
+plot_fit
+```
 
-1. Removing one of the variables that inflates the variance from the regression analysis. Much information would not have been lost since the variable correlated with it explains more or less the same amount of the response variability.
+<----> INSERT THE GOOD PLOT ABOVE <---->
+From *Figure \@ref(fig:ncv)*, a funnel shape can be observed in the scatterplot, which implies some degree of non-constant variance in the errors. To remedy this problem, a variance stabilising transformation *(log transformation)* was implemented. Further diagnostics tests were performed on the model with the transformed response.
+\small
+```{r diag-show, message=FALSE, warning=FALSE}
+data_vst <- data.frame (cbind (prod = log (data_model$prod), data_model [, 2:4]))
+fit <- lm (prod ~ ., data = data_vst)
+sw <- shapiro.test(residuals(fit)) # Shapiro-Wilk test
+dw <- durbinWatsonTest (fit) # Durbin-Watson test
+# HLP:
+hat <- influence(fit)$hat; thr <- 2*4/n # 0.24 threshold
+hn_quantiles <- sapply (seq(1/(n+1), n/(n+1), length.out = n), function (t) qhalfnorm(t, theta=sqrt(pi/2), lower.tail = TRUE, log.p = FALSE)) # theoretical quantiles
+# Outliers:
+rstad <- rstandard (fit)
+alpha <- 0.05; b_threshold <- qt(1-alpha/(2*n), df = fit$df.residual)
+# Cook's distance:
+cook <- cooks.distance (fit)
+```
+\normalsize
 
-2. Combining the variables and including the new variable into the model specification. This method is more preferable because in this way, no information is lost. The decision would have to have been made on the nature of the combination of the two variables, as well as on ways to account for differences of measurement scales.
+```{r diag-plots, warning=FALSE, message=FALSE, echo=FALSE, fig.align='center', fig.cap="Caption this", out.height="90%", out.width="90%"}
+df_diag <- data.frame (fitted = fit$fitted.values, residuals = fit$residuals)
+###############
+## residuals ##
+###############
 
-# Diagnostics
+plot_resid <- ggplot(data = df_diag, aes(x = fitted, y = residuals)) +
+    geom_point(shape = 16, col = mypal [1], size = 2.8) +
+    geom_hline (yintercept =  0, lty = 2, lwd = 1.2) +
+    labs(x = "Fitted", y = "Residuals", title = "Fitted - Residuals") +
+    theme_bw () + 
+    theme (plot.title = element_text(hjust = 0.5, vjust = -1, face = "bold"))
 
-When fitting the regression and making inference, it is assumed that all the data points have constant variance. However, it may not always be the case: the nature of the data may indicate that there are differences in variability across observations.
+###############
+#### qqplot ###
+###############
 
-If the assumption on constant variance is violated, then the ordinary least squares are not the most efficient estimators in the class of unbiased linear estimators: the Gauss-Markov theorem relies on the assumtpion that variance is constant across the observation and equal to $\sigma^2 (1). Additionally, the standard errors for the regression coefficients are not estimated correctly, which leads to problems with making inference on the coefficients. 
-
-To check whether the variance is constant, the residuals are investigated. 
-
-```{r resid-plot}
-fit <- mod4
-col_groups <- mypal [c (1, 3, 10)]
-data$groups <- cut(fitted (fit), breaks = c(-1, -.56, .25, 1), labels = c(1, 2, 3))
-colors <- col_groups [as.integer(data$groups)]
-plot(fitted(fit), residuals(fit), pch = 18, xlab = "fitted", ylab = "residuals", main = "Fitted vs residuals", col = colors)
-max_residual_index <- which.max(abs(residuals(fit)))
-max_residual_state <- rownames(data)[max_residual_index]
-
-# Add the state name with the maximum residual value to the plot
-text(fitted(fit)[max_residual_index], residuals(fit)[max_residual_index],
-     labels = max_residual_state, pos = 4)
+plot_qq <- ggplot(df_diag, aes(sample = residuals)) +
+    stat_qq_line(lwd = 1.5, col = mypal [12]) +
+    stat_qq(size = 3, pch = 16, col = mypal [1]) +
+    theme_bw() +
+    labs (x = "Theoretical Quantiles", y = "Sample Quantiles", title = "QQ-plot")+
+    theme_bw () +
+    theme (plot.title = element_text(hjust = 0.5, vjust = -1, face = "bold"))
 
 
-## on log data
- lm (prod ~ cat_pm + thiam + ace + cloth, data = data_noo)
-log_for_zeros <- function (vect){
-  out <- numeric (length (vect))
-  for (i in 1:length (vect)){
-    if (vect [i] != 0){
-    out [i] <- log (vect [i])
-    }
-  else {
-    vect [i] <- .0001
-    out [i] <- log (vect [i])
-    }
-  }
-  return (out)
+###############
+##### hlp #####
+###############
+
+df_halfnorm <- data.frame (quantiles = sort (hn_quantiles), hats = sort (hat))
+
+max_hats_row <- df_halfnorm[which.max(df_halfnorm$hats), ]
+plot_hlp <-ggplot (data = df_halfnorm, aes (x = quantiles, y = hats)) + 
+    geom_point (shape = 16, size = 3, col = mypal [1]) +
+    geom_hline (yintercept = thr, lty = 2, lwd = 1.2) + 
+    geom_ribbon (aes (xmin = 0, xmax = 2.1, ymin = 0, ymax = .24), fill = mypal [4], alpha = .1) + 
+    annotate ("text", label = "y = 0.24", x = .5, y = 0.25, col = mypal [1], fontface = "bold", size = 5) + 
+    labs (x = "Half-normal quantiles", y = "Sorted data", title = "High leverage points") +
+coord_cartesian (ylim = c (.05, .35)) +
+    theme_bw () +
+    theme (plot.title = element_text(hjust = 0.5, vjust = -1, face = "bold"))
+
+
+###############
+### outliers ##
+###############
+
+df_outliers <- data.frame (xaxis = seq_along (abs (rstad)), rstad = abs (rstad))
+plot_outliers <- ggplot (data = df_outliers, aes (x = xaxis, y = rstad)) + 
+    geom_point (shape = 16, size = 3, col = mypal [1]) +
+    geom_hline (yintercept = b_threshold, lty = 2, lwd = 1.2) +
+    geom_ribbon (aes (xmin = 0, xmax = 35, ymin = 0, ymax = b_threshold), fill = mypal [4], alpha = .1) + 
+    annotate ("text", label = "Bonferroni threshold", x = 10, y = 3.3, col = mypal [1], fontface = "bold", size = 6) +
+    labs (x = "Index", y = "Studentised residuals", title = "Outliers") +
+    theme_bw () +
+    theme (plot.title = element_text(hjust = 0.5, vjust = -1, face = "bold"))
+
+(plot_resid + plot_qq) / (plot_hlp + plot_outliers)
+```
+From *\@ref(fig:diag-plots)*, several conclusions can be drawn. Firstly, the trend observed in the residuals is eliminated, hence it can be concluded that the problem of non-constant variance is not present anymore. There is no violation of the linearity assumption. Normality assumption is confirmed both by visual analysis and by the test statistic. Durbin_Watson outcome suggests that there is no statistical evidence against the null hypothesis of the absence of correlation. No outliers are detected; however, the state of Florida appears to be a high leverage observation. To test whether it affects the fit in a significant way, the Cook distance was computed 
+```{r cook, echo=FALSE,message=FALSE,warning=FALSE}
+df_cook <- data.frame (t (as.matrix (round (summary (cook), digits = 3))))
+colnames (df_cook) <- c ("Min", "1 Quant", "Median", "Mean", "3 Quant", "Max")
+tab_cook <- flextable (df_cook) %>%
+  set_caption("Cook's distance: descriptive statistics") %>%
+  align(align = "center") %>%
+  theme_booktabs() %>%
+  bold(part = "header") %>%
+  bg(i = 1, bg = "#F5E2C8")
+tab_cook
+```
+From *Table \@ref(tab:cook)*, it can be observed that for none of the observations, including the state of Florida, Cook's distance exceeds the rule-of-thumb value of one. Additionally, the maximum value does not exceed the rest of the values significantly, hence it can be concluded that the high-leverage point observed above does not influence the fit significantly and thus, to avoid losing information, its exclusion from the model may be avoided. 
+
+# Model analysis
+The obtained linear regression model contains the optimal number of variables and it adheres to the assumptions of the linear regression model. Hence, the estimates it provides are reliable, and inference can be made. 
+
+## Regression estimates
+The results of the *lm ()* fit are presented below.
+```{r fit-output, echo=FALSE, message=FALSE, warning=FALSE}
+sum_reg <- summary (fit)
+sum_coefs <- round (sum_reg$coefficients, 3)
+sum_coefs <- data.frame (sum_coefs)
+colnames (sum_coefs) <- c ("Estimate", "se", "t-statistic", "p-value")
+rownames (sum_coefs) <- c ("Intercept", "imid", "co2", "pm")
+tab_coefs <- flextable(sum_coefs) %>%
+  set_caption("Regression coefficients") %>%
+  align(align = "center") %>%
+  theme_booktabs() %>%
+  bold(part = "header") %>%
+  bg(i = c (1, 3), bg = "#F5E2C8") 
+
+gof <- data.frame (round (sum_reg$sigma, digits = 3), round (sum_reg$r.squared, digits = 3), round (sum_reg$fstatistic [1] , digits = 3))
+colnames (gof) <- c ("RSS", "$R^2$", "F-statistic, p=.0003")
+tab_gof <- flextable (gof) %>% 
+  align (align = "center") %>% 
+  theme_booktabs() %>% 
+  bg(i = 1, bg = "#F5E2C8")
+
+tab_coefs
+tab_gof
+```
+*Table \@ref(tab:fit-output)* provides coefficient estimates, their uncertainty and interpretation, measures of goodness of fit for the model, as well as test statistic values that will be used for inference further in the analysis.
+* For high levels of CO2 and PM 2.5 and no use of imidacloprid, the log of average honey production in 2016 was -1.034 kilotonnes.
+* For co2 and PM2.5 held at baseline, an increase of one ton of usage of imidacloprid would lead to 0.054 unit increase of the log of honey production. ????????????????????????????
+* For no use of imidacloprid and CO2 emissions held at baseline; the average of the log of total honey production for low emissions of Carbon Dioxide is -1.698.
+* For no use of imidacloprid and CO2 held at baseline; the average of the log of total honey production for states with low concentrations of PM.25 is 0.656.
+
+```{r eff-imid, warning=FALSE, message=FALSE, echo=FALSE, fig.align='center', fig.cap="Effective plot lala", out.height="90%", out.width="90%"}
+eff_imid <- data.frame (ggpredict (fit, terms = "imid"))
+plot_eff_imid <- ggplot(data = eff_imid, aes(x = x, y = predicted)) +
+    geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.3, fill = mypal [2]) +
+    geom_line(col = mypal [1], lwd = 2) +
+    labs(x = "imid", y = "Predicted Value") +
+    theme_bw() +
+    theme (plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+plot_eff_imid
+plot (predictorEffect("cat_co2", fit), main = "")
+plot (predictorEffect("cat_pm", fit), main = "")
+```
+To visualise the uncertainty associated with the estimators, effects plots are used. They allow to observe the estimate of the effect of the covariate on the response holding other variables constant, together with the uncertainty associated with the estimates. For categorical variables, they demonstrate how the levels for them influence the response, with other variables held constant, also with the degree of uncertainty. From effective plots, it can be observed that .............
+## Significance of regression coefficients
+
+To determine whether the effect of a covariate on the response is significant, a null hypothesis of the lack of effect is proposed: 
+$$ H_0 : \beta_j = 0; \ \ H_1:  \beta_j \ne 0; \ \ \beta_{!j} \ \ arbitrary $$
+To test this hypothesis, a standard t-test is run, the result for which is recorded in *Table \@ref(tab:fit-output)*. For the variables imidacloprid and PM2.5, it can be concluded that the effect of those covariates on the response is statistically significant at 1% significance level. For the CO2 variable, however, the null of the absence of the effect is not rejected.
+
+## Testing a group of regressors
+From previous inference, it can be concluded that the effect of the PM2.5 variable on the response is stronger than for the other two covariates included. Hence, it is important to test a hypothesis if the contribution of the other two covariates improves the amount of the explained variability of the response enough to provide a significant result of an ANOVA testing: this implies testing a pair of covariates to assess if their contribution to the explanation of variance is discernable enough with respect to the amount of variance explained by the full model. The following hypothesis is tested: 
+$$ H_0 : \beta_1 = \beta_2 = 0; \ \ \beta_3 \ \ arbitrary $$
+\small
+```{r group-testing-show, warning=FALSE, message=FALSE}
+fit_nested <- lm( prod ~ imid + cat_co2, data = data_vst) 
+anova_res <- round (anova(fit_nested, fit), digits = 2)
+```
+\normalsize
+```{r group-testing, warning=FALSE, message=FALSE, echo=FALSE}
+flextable (anova_res) %>% 
+  set_caption("Testing multiple regression coefficients") %>%
+  align(align = "center") %>%
+  theme_booktabs() %>%
+  bold(part = "header") %>%
+  bg(i = 2, bg = "#F5E2C8")
+```
+Outcome of the ANOVA analysis suggests that CO2 and imidacloprid have statistically significant effect in the model when considered together, hence should not be excluded from the model. However, this effect is likely due to the variable for imidacloprid, for it is statistically significant according to the results of the t-testing above, whereas CO2 variable was deemed not significant in the model. 
+
+## Goodness of fit
+
+Common measures of goodness of fit for linear regression model are the coefficient of determination and the residual standard error. As evidenced by *REF TABLE*, $R^2$ amounts to approximately 0.45, which implies that model explains around 45% of the variability of the response variable. Residual standard error is the measure of lack of fit of the model (@james-2013, p. 69), its value suggesting that total honey production in each states deviates from the true regression line by approximately 1.12 units on the log scale, which, considering the regerssion estimatio results and the summary statistics of the data, appears to be a significantly large value. 
+
+Furthermore, the global F-test, which tests the specification of the mean functions (@weisberg2005applied, p. 134), as such:
+$$ H_0: E(Y \ \vert \ X) = \beta_0 \\ H_1: E(Y \ \vert \ X) = \beta_0 + \beta_1 x_{i1} + \beta_2 x_{i2} + \beta_3 x_{i3}    $$
+The result suggest that there is statistical evidence against the null, which implies that the predictors significantly improve the fit of the model, compared to the null model.
+
+# Prediction for an omitted state
+
+At the step of data collection, some states were omitted from the analysis because the data on pesticide usage was not collected for them for that year. Using the obtained regression fit, it is possible to estimate the value for total honey production for a state previously omitted from the analysis. The state of California was chosen: the data for pesticide imidacloprid were used from 2015, whereas for the air pollution variables actual data for 2016 was input. 
+\small
+```{r pred-show, message=FALSE, warning=FALSE}
+new_data <- data.frame("imid" = (150569.3 / 1000), "cat_co2" = ifelse (9 > mean (data_full$co2), "High", "Low"), "cat_pm" = ifelse (36.7 > mean (data_full$pm), "High", "Low"))
+cali_pred <- predict(fit, newdata = new_data, interval="prediction", level=.95, se.fit = T)
+```
+\normalsize
+```{r pred-tab, warning=FALSE, message=FALSE, echo=FALSE}
+true_value <- log (11160000 / (1000*2204.62))
+df_pred <- data.frame (round (true_value, digits = 3), round (cali_pred$fit [1], digits = 3), round (cali_pred$se.fit, digits = 3), paste ("(", round (cali_pred$fit[2], digits = 3), ",",  round (cali_pred$fit [3], digits = 3), ")", sep = ""))
+colnames (df_pred) <- c ("True value", "Prediction", "Standard error", "CI")
+
+tab_pred <- flextable(df_pred) %>%
+  set_caption("Prediction for California") %>%
+  align(align = "center") %>%
+  theme_booktabs() %>%
+  bold(part = "header") %>%
+  bg(i = 1, bg = "#F5E2C8")
+tab_pred
+```
+The true value for total honey production in California is available in the original dataset, hence it is possible to meaningfully compare obtained prediction with the actual value. *Table \@ref(tab:pred-tab)* demonstrates that the model has poor predictive ability: the predicted value does not correspond to the true value; however, the true value is included in the confidence interval. However, it must be noted that the confidence interval is quite wide, relative to the values estimated. This is justified by the fact that the predictive confidence interval incorporates two sources of uncertainty: uncertainty associated with the $\beta$ estiamtes, and uncertainty associated with observing a new value.
+
+# Simulating new values
+Using the model specification, it is possible to simulate new observation for the response variable using the predictor variable. The predictors are assumed non-stochastic and measured without error. As simplification, the estimates of the linear regression (the $\beta$ coefficients and the residual standard error, which is the estimate for the standard error of the residuals) are assumed to be the true values. Hence, the values obtained by matrix multiplication^[To avoid matrix multiplication computations, fitted values from the *lm ()* estimation are used] of the model matrix to the vector of $\beta$ coefficients would provide the mean response for each state; by adding to it a stochastic component, an error term, distributed $N (0, \widehat{\sigma}^2)$, it would be possible to simulate new values for the log of honey production for the population. 
+\small
+```{r sims, message=FALSE, warning=FALSE}
+sims <- function (coefficients, seed = Sys.time ()) {
+  set.seed (seed)
+  sigma <- sum_reg$sigma
+  preds <- model.matrix (fit)
+  xb <- preds %*% coefficients
+  epsilons <- rnorm (n, mean = 0, sd = sigma)
+  y_sim <- xb + epsilons
+  return (y_sim)
 }
-
-data_log <- data_unscaled [, c (1, 3, 5, 6, 8)]
-data_log [, 1:4] <- apply (data_log [, 1:4], 2, log_for_zeros)
-fit_log <- lm (prod ~ cat_pm + thiam + ace + cloth, data = data_log)
-plot(fitted(fit_log), residuals(fit_log), pch = 18, xlab = "fitted", ylab = "residuals", main = "Fitted vs residuals")
+coefs <- sum_coefs [, 1]; simulations <- sims (coefs, 17)
 ```
-
-
-```{r}
-sw <- shapiro.test(residuals(fit)) 
-qqnorm(residuals(fit), pch=16, col = 2) 
-qqline(residuals(fit), col = 1, lwd = 2) 
-legend("bottomright", legend = paste("Shapiro-Wilk = ", round(sw$statistic, 2),", p = ", signif(sw$p.value, 2)))
-text(fitted(fit)[max_residual_index], residuals(fit)[max_residual_index],
-     labels = max_residual_state, pos = 4)
-
-# for log:
-sw <- shapiro.test(residuals(fit)) 
-qqnorm(residuals(fit_log), pch=16, col = 2) 
-qqline(residuals(fit_log), col = 1, lwd = 2) 
+\normalsize
+```{r sims-plot, warning=FALSE, message=FALSE, echo=FALSE, fig.align='center', fig.cap="Comparison of distributions of observed, fitted and simulated values for the log of total honey production", out.height="90%", out.width="90%"}
+fitted <- fitted (fit)
+true <- data_vst$prod
+df_sims<- data.frame(
+  Group = rep(c("Observed", "Fitted", "Simulated"), each = length(simulations)),
+  Values = c(true, fitted, simulations)
+)
+df_sims$Group <- factor(df_sims$Group, levels = c("Observed", "Fitted", "Simulated"))
+plot_sims <- ggplot(df_sims, aes(x = Group, y = Values, fill = Group)) +
+    geom_boxplot(color = "black") +
+    labs(x = "log response", y = "Values", title = "Box Plot Comparison") +
+    scale_fill_manual(values = c(mypal[2], mypal[3], mypal[4])) +
+    theme_bw() +
+    guides(fill = guide_legend(title = NULL)) +
+    theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+          legend.position = c(0.51, .12),
+          legend.justification = c(1, 1),
+          legend.direction = "horizontal",
+          legend.text = element_text(size = 10))
+plot_sims
 ```
+From *Figure \@ref(fig:sims-plot)* it can be observed that the simulated and fitted values are similarly distributed, with distributed values having a wider range. However, neither of them capture the extreme values that appear in the distribution of the observed values for the response variable.
+
+# Conclusions
+Including interactions
+Exploring other years
 
 
+\newpage
 
-```{r hlp}
-infl <- influence(fit)
-hat <- infl$hat
-2*6/34 # 0.35 
-which(hat>0.35) # 6 obs
-install.packages ("faraway")
-library (faraway)
-halfnorm (hat, 6, labs = substr(rownames(data), 1, 1), main = "High leverage points")
-```
-
-```{r}
-rstad <- rstandard(fit)
-range(rstad) # [-1.3, 4.45] no issues by rule of thumb
-alpha <- 0.05
-n <- length(data$prod)
-b_threshold <- qt(1-alpha/(2*n), df = fit$df.residual)
-outlier_index <- which(abs(rstad) > b_threshold)
-plot(abs(rstad), pch = 18, ylim = c(0,6), ylab = "Studentised residuals", main = "Outlier detection")
-abline(h = b_threshold, col = 2, lwd = 2, lty = 2)
-legend ("topright", legend = "Bonferroni threshold", lty = 2, lwd = 2, col = 2)
-text(outlier_index, abs(rstad)[outlier_index], labels = rownames(data)[outlier_index], pos = 1)
-```
-
-```{r infl}
-cook <- cooks.distance(fit)
-which(cook>1)
-```
-```{r no-outliers}
-# ND is number 20
-data_noo <- data [-20, ]
-fit_noo <- lm (prod ~ cat_pm + thiam + ace + cloth, data = data_noo)
-data_noo$groups <- cut(fitted (fit_noo), breaks = c(-1, -.56, .25, 1), labels = c(1, 2, 3))
-plot(fitted(fit_noo), residuals(fit_noo), pch = 18, xlab = "fitted", ylab = "residuals", main = "Fitted vs residuals", col = colors)
-sw <- shapiro.test(residuals(fit_noo)) 
-qqnorm(residuals(fit_noo), pch=16, col = 2) 
-qqline(residuals(fit_noo), col = 1, lwd = 2) 
-legend("bottomright", legend = paste("Shapiro-Wilk = ", round(sw$statistic, 2),", p = ", signif(sw$p.value, 2)))
-text(fitted(fit_noo)[max_residual_index], residuals(fit_noo)[max_residual_index],
-     labels = max_residual_state, pos = 4)
-```
+# References
 
 
