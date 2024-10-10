@@ -134,7 +134,7 @@ Unfortunately, as *Figure \@ref:(fig:trend)* allows to observe, a trend in the d
 # number of beehives
 trend <- read.csv ("population.csv", sep = ";", header = T)
 colnames (trend) <- c ("Year", "Value")
-trend <- trend [trend$Year >=1989, ]
+trend <- trend [trend$Year >=1961, ]
 trend <- trend [trend$Year <= 2017, ]
 
 plot_trend <- ggplot(trend, aes(x = Year, y = Value)) +
@@ -217,7 +217,7 @@ plot_violins
 ```
 From *Figure \@ref(fig:violins)*, it is evident that the distributions are right-skewed. However, for pesticides imidacloprid and acetamiprid, the disribution is less skewed, and a higher number of high levels of pesticide usage are observed. 
  
-?????It can be noted that the values for total honey production, carbon dioxide emissions and pesticide usage span over several orders on magnitude. It is common practice to apply the logarithm transformation to such variables, however, for the purposes of this analysis, the decision on data transformation will be postponed, to take into account the results of diagnostics analysis.  
+It can be noted that the values for total honey production, carbon dioxide emissions and pesticide usage span over several orders on magnitude. It is common practice to apply the logarithm transformation to such variables, however, for the purposes of this analysis, the decision on data transformation will be postponed, to take into account the results of diagnostics analysis.  
 ```{r rm2, message=FALSE, warning=FALSE, echo=FALSE}
 rm (trend)
 rm (melted)
@@ -590,9 +590,9 @@ tab_gof
 ```
 *Table \@ref(tab:fit-output)* provides coefficient estimates, their uncertainty and interpretation, measures of goodness of fit for the model, as well as test statistic values that will be used for inference further in the analysis.
 * For high levels of CO2 and PM 2.5 and no use of imidacloprid, the log of average honey production in 2016 was -1.034 kilotonnes.
-* For co2 and PM2.5 held at baseline, an increase of one ton of usage of imidacloprid would lead to 0.054 unit increase of the log of honey production. ????????????????????????????
-* For no use of imidacloprid and CO2 emissions held at baseline; the average of the log of total honey production for low emissions of Carbon Dioxide is -1.698.
-* For no use of imidacloprid and CO2 held at baseline; the average of the log of total honey production for states with low concentrations of PM.25 is 0.656.
+* For co2 and PM2.5 held at baseline, an increase of one ton of usage of imidacloprid would lead to 0.054 unit increase of the log of honey production.
+* For arbitrary imidacloprid use and CO2 emissions held at baseline; the average of the log of total honey production for low emissions of Carbon Dioxide is -1.698.
+* For arbitrary imidacloprid use and CO2 held at baseline; the average of the log of total honey production for states with low concentrations of PM.25 is 0.656.
 
 ```{r eff-imid, warning=FALSE, message=FALSE, echo=FALSE, fig.align='center', fig.cap="Effective plot lala", out.height="90%", out.width="90%"}
 eff_imid <- data.frame (ggpredict (fit, terms = "imid"))
@@ -606,7 +606,8 @@ plot_eff_imid
 plot (predictorEffect("cat_co2", fit), main = "")
 plot (predictorEffect("cat_pm", fit), main = "")
 ```
-To visualise the uncertainty associated with the estimators, effects plots are used. They allow to observe the estimate of the effect of the covariate on the response holding other variables constant, together with the uncertainty associated with the estimates. For categorical variables, they demonstrate how the levels for them influence the response, with other variables held constant, also with the degree of uncertainty. From effective plots, it can be observed that .............
+To visualise the uncertainty associated with the estimators, effects plots are used. They allow to observe the estimate of the effect of the covariate on the response holding other variables constant, together with the uncertainty associated with the estimates. For categorical variables, they demonstrate how the levels for them influence the response, with other variables held constant, also with the degree of uncertainty.
+
 ## Significance of regression coefficients
 
 To determine whether the effect of a covariate on the response is significant, a null hypothesis of the lack of effect is proposed: 
@@ -704,9 +705,9 @@ plot_sims
 From *Figure \@ref(fig:sims-plot)* it can be observed that the simulated and fitted values are similarly distributed, with distributed values having a wider range. However, neither of them capture the extreme values that appear in the distribution of the observed values for the response variable.
 
 # Conclusions
-Including interactions
-Exploring other years
 
+The estimation of the linear regression model allowed to obtain some insights into the nature of the relationship between honey production and certain environmental factors. As such, a significant negative linear relationship was found between PM2.5 and the response, which suggests that, for states with higher concentrations of particular matter in the air, lower values for honey production are observed. However, the relationship found between the usage of a neonicotinoid pesticide and imidacloprid and honey production was determined to be positive. It should be underlined that both results are associated with some uncertainty, and the model itself demonstrated a quite high residual standard error, despite explaining almost half of the overall variability of the response.
+Nevertheless, there is a wide range of possibilities for improving the analysis in the future. As such, inclusion of additional predictors, such as traffic pollution, the presence of human-made structures and weather conditions should be also accounted for in the analysis. What is more, it would be beneficial to expand the research to include a longer time frame to be able to observe some trends that may occur over time. Additionally, other regressors, such as interaction terms between covariates for air pollution, may be included in the model to study their joint effects on the response. Further ways to improve the analysis may include investigating the relationships within observed units and attempting to account for any patterns discovered.
 
 \newpage
 
