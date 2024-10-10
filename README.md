@@ -15,7 +15,7 @@ This repository showcases projects that focus on the application of statistical 
 The aim of the analysis is to investigate the efficacy of beta-blockers in reducing mortality rates after a cardiac event. A **meta-analysis** of 15 clinical studies was implemented, which showed a significant reduction in long-term mortality but inconclusive short-term effects, highlighting the complexity of treatment efficacy and the potential influence of publication bias.
 
 <p align="center">
-  <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/bayesian_hierarchical/aux_files/forest_plot.png" alt="Forest plot for empirical logits" width="800" height = "400"/>
+  <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/bayesian_hierarchical/aux_files/forest_plot.png" alt="Forest plot for empirical logits" width="700" height = "400"/>
   <br/>
   <i>Forest plot for empirical logits</i>
 </p>
@@ -44,7 +44,7 @@ The **structure** of the network was analysed, with the main centralities invest
 
 This is a **research** project investigating the **Adaptive Rejection Metropolis Sampling** approach, which is an advanced **Markov Chain Monte Carlo** technique that is used in Bayesian modelling where the posterior densities admit a **non-log-concave shape**. 
 <p align="center">
-  <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/arms_computational/aux_files/envelope.png" alt="An example of the envelope for the ARMS sampling" width="500" height = "400"/>
+  <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/arms_computational/aux_files/envelope.png" alt="An example of the envelope for the ARMS sampling" width="700" height = "400"/>
   <br/>
   <i>An example of the envelope for the ARMS sampling</i>
 </p>
@@ -61,7 +61,7 @@ The project provides a full **theoretical description** of the simpler building 
 The aim of the project is to investigate whether the rapid decline in the <b>honey bee population</b> can be attributed to certain envionmental pollution factors, among which are a number of widely used neonicotinoid pesticides and air pollution proxy variables. The idea for the project was inspired by the [Kaggle dataset](https://www.kaggle.com/datasets/kevinzmith/honey-with-neonic-pesticide), and the dataset was finalised by accessing data from US governmental sources. 
 
 <p align="center">
-  <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/linear_modelling/data/trend.png" alt="Number of beehives in the United states, 1961-2017. "  width="500" height = "400"/>
+  <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/linear_modelling/data/trend.png" alt="Number of beehives in the United states, 1961-2017. "  width="700" height = "400"/>
   <br/>
   <i>Number of beehives in the United states, 1961-2017. <a href="https://www.fao.org/faostat/en/" target="_blank">Data Source</a></i>
 </p>
