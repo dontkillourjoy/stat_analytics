@@ -15,7 +15,7 @@ This repository showcases projects that focus on the application of statistical 
 The aim of the analysis is to investigate the efficacy of beta-blockers in reducing mortality rates after a cardiac event. A **meta-analysis** of 15 clinical studies was implemented, which showed a significant reduction in long-term mortality but inconclusive short-term effects, highlighting the complexity of treatment efficacy and the potential influence of publication bias.
 
 <p align="center">
-  <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/bayesian_hierarchical/aux_files/forest_plot.png" alt="Forest plot for empirical logits" width="500" height = "400"/>
+  <img src="https://github.com/dontkillourjoy/stat_analytics/blob/main/bayesian_hierarchical/aux_files/forest_plot.png" alt="Forest plot for empirical logits" width="800" height = "400"/>
   <br/>
   <i>Forest plot for empirical logits</i>
 </p>
